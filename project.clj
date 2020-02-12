@@ -7,4 +7,6 @@
                  [instaparse "1.4.10"]
                  [org.tomlj/tomlj "1.0.0"]]
   :repl-options {:init-ns dawn.core}
-  :main dawn.core)
+  :main dawn.core
+  :profiles {:dev {:plugins [[com.jakemccrary/lein-test-refresh "0.24.1"]
+                             [venantius/ultra "0.6.0"]]}})
