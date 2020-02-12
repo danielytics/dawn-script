@@ -1,0 +1,205 @@
+# File is in TOML format: https://github.com/toml-lang/toml/blob/master/README.md
+# Text fields starting with => are code expressions that are executed to generate a value
+name = "SmartGrid"
+description = "Line tracking strategy with lots of smarts"
+
+# User-configurable settings
+[[config]]
+    name = "order-sizes"
+    label = "Order Sizes"
+    type = "list"
+
+    [[config.list-value]]
+        label = "First Line"
+        type = "percent"
+        default = 0
+    [[config.list-value]]
+        label = "Second Line"
+        type = "percent"
+        default = 0
+    [[config.list-value]]
+        label = "Third Line"
+        type = "percent"
+        default = 0
+    [[config.list-value]]
+        label = "Fourth Line"
+        type = "percent"
+        default = 0
+[[config]]
+    name = "tp-trail-threshold"
+    label = "How close to TP before trailing"
+    type = "price"
+[[config]]
+    name = "trailing-stop-offset"
+    label = "Trailing Stop Offset"
+    type = "price"
+
+# External inputs
+[inputs]
+    #Four upper lines
+    inputs.upper1 = {type = "number"}
+    inputs.upper2 = {type = "number"}
+    inputs.upper3 = {type = "number"}
+    inputs.upper4 = {type = "number"}
+    # Four lower lines
+    inputs.lower1 = {type = "number"}
+    inputs.lower2 = {type = "number"}
+    inputs.lower3 = {type = "number"}
+    inputs.lower4 = {type = "number"}
+    # TP Lines
+    inputs.long-tp = {type = "number"}
+    inputs.short-tp = {type = "number"}
+    # Stop Lines
+    inputs.long-stop = {type = "number"}
+    inputs.short-stop = {type = "number"}
+    # Statuses
+    [inputs.status]
+        type = "bitfield"
+        fields = ["upper1", "upper2", "upper3", "upper4", "lower1", "lower2", "lower3", "lower4", "long-tp", "short-tp", "long-stop", "short-stop"]
+
+# Global data values, used below
+[data]
+    [data.upper-lines]
+        type = "list"
+        value = ["upper1", "upper2", "upper3", "upper4"]
+
+    [data.lower-lines]
+        type = "list"
+        value = ["lower1", "lower2", "lower3", "lower4"]
+
+# Strategy logic
+[states]
+    # Start in the "not-in-position" state
+    initial = "not-in-position"
+    
+    ##########
+    # State: not-in-position
+    #
+    # When in this state, no position is held. 8 entry limit orders are kept open (if enabled)
+    ##########
+    [[states.state]]
+        id = "not-in-position"
+
+        # Sync eight orders with the four upper and four lower line values
+        [[states.state.orders]]
+            # Duplicate this order for each line (#line will be bound to each value in the list in turn)
+            foreach.line = "=> #upper-lines + #lower-lines"
+            tag = "entry/#line"
+            type = "limit"
+            side = "=> #line in #upper-lines ? 'sell' : 'buy'"
+            # index-in-list will return a value in range 0..7, by taking modulus 4, any value in range 4..7 will be changed to 0..3
+            contracts = "=> (config.order-sizes.([index-in-list: #line, #upper-lines + #lower-lines] mod 4))% of account.balance"
+            price = "=> inputs.#line"
+            instructions = ["post-only"]
+            # Only when enabled in the status input bitfield
+            when = "=> inputs.status.#line"
+            # On order fill, transition to new state "in-position"
+            [states.state.orders.on.fill]
+                to-state = "in-position"
+    
+    ##########
+    # State: in-position
+    #
+    # When in this state, an open position is held. This state has two sub-states: normal and trailing.
+    ##########
+    [[states.state]]
+        id = "in-position"
+        # The "in-position" state is composed of two substates, a substate consists inherits its parent state settings
+        sub-states = [
+            "in-position/normal",
+            "in-position/trailing"
+        ]
+        initial = "in-position/normal"
+
+        # Data which is shared by sub-states
+        data.tp-count = 0 # Track which TP
+        data.tp-stop-offset = 0 # Track offset between stop and tp
+        
+    ##########
+    # State: in-position/normal
+    #
+    # Four DCA entry limits are maintained as well as a TP exit limt and a stop loss.
+    # When the close price reaches within a threshold of the TP line, switch states to the trailing sub-state.
+    ##########
+    [[states.state]]
+        id = "in-position/normal"
+
+        [[states.state.orders]]
+            tag = "take-profit"
+            type = "limit"
+            side = "=> account.position > 0 ? 'sell' : 'buy'"
+            contracts = "=> config.tp-sizes.#tp-count"
+            price = "=> account.position > 0 ? inputs.long-tp : inputs.short-tp"
+            instructions = ["post-only"]
+            # This condition becomes false when the close price is within the threshold, cancelling this order, triggering a state change
+            when = "=> [Math.abs: market.close - self.price] > config.tp-trail-threshold"
+            [states.state.orders.on.cancel] # TODO: is it risky to piggy-back on cancellation to switch to trailing? what if the order is cancelled for another reason?
+                to-state = "in-position/trailing"
+                data.tp-stop-offset = "=> self.price - orders.stop-loss.price"
+            [states.state.orders.on.fill]
+                to-state = "=> #tp-count < 2 ? 'in-position/normal' : 'not-in-posision'"
+                data.tp-count = "=> #tp-count + 1"
+
+        [[states.state.orders]]
+            tag = "stop-loss"
+            type = "stop-market"
+            side = "=> account.position > 0 ? 'buy' : 'sell'"
+            instructions = ['close']
+            trigger-price = "=> account.position > 0 ? inputs.long-stop : inputs.short-stop"
+
+        # Sync four DCA orders with the four upper or lower (depending on direction of position) line values
+        [[states.state.orders]]
+            # Duplicate this order for each line (long entry lower lines when in a long, short entry upper lines when in a short)
+            foreach.line = "=> account.position > 0 ? #lower-lines : #upper-lines"
+            tag = "entry/#line"
+            type = "limit"
+            side = "=> account.position > 0 ? 'buy' : 'sell'"
+            # index-in-list will return a value in range 0..7, by taking modulus 4, any value in range 4..7 will be changed to 0..3
+            contracts = "=> (config.order-sizes.([index-in-list: #line, #upper-lines + #lower-lines] mod 4))% of account.balance"
+            price = "=> inputs.#line"
+            instructions = ["post-only"]
+            # Only when enabled in the status input bitfield
+            when = "=> inputs.status.#line"
+    
+    ##########
+    # State: in-position/trailing
+    #
+    # Four DCA entry limits are maintained as well as a TP exit limt and a stop loss.
+    # Trail stop loss at an offset from the price and maintain an equal distance from the stop to the TP line (reverse trailing).
+    ##########
+    [[states.state]]
+        id = "in-position/trailing"
+
+        [[states.state.orders]]
+            tag = "trailing-stop-loss"
+            type = "stop-market"
+            side = "=> account.position > 0 ? 'buy' : 'sell'"
+            instructions = ['close']
+            trigger-price = "=> account.position > 0 ? inputs.long-stop : inputs.short-stop"
+            # This parameter makes this stop a trailing stop!
+            trail-offset = "=> config.trailing-stop-offset"
+
+        [[states.state.orders]]
+            tag = "take-profit"
+            type = "limit"
+            side = "=> account.position > 0 ? 'sell' : 'buy'"
+            price = "=> orders.trailing-stop-loss.price + #tp-stop-offset"
+            instructions = ["post-only"]
+            [states.state.orders.on.fill]
+                # Switch back to normal, but on the third TP, switch to not-in-position instead
+                to-state = "=> #tp-count < 2 ? 'in-position/normal' : 'not-in-posision'"
+                data.tp-count = "=> #tp-count + 1"
+
+        # Sync four DCA orders with the four upper or lower (depending on direction of position) line values
+        [[states.state.orders]]
+            # Duplicate this order for each line (long entry lower lines when in a long, short entry upper lines when in a short)
+            foreach.line = "=> account.position > 0 ? #lower-lines : #upper-lines"
+            tag = "entry/#line"
+            type = "limit"
+            side = "=> account.position > 0 ? 'buy' : 'sell'"
+            # index-in-list will return a value in range 0..7, by taking modulus 4, any value in range 4..7 will be changed to 0..3
+            contracts = "=> (config.order-sizes.([index-in-list: #line, #upper-lines + #lower-lines] mod 4))% of account.balance"
+            price = "=> inputs.#line"
+            instructions = ["post-only"]
+            # Only when enabled in the status input bitfield
+            when = "=> inputs.status.#line"

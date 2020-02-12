@@ -1,0 +1,98 @@
+dawn                    = raw-text | code
+<code>                  = <'=>'> ws? (block | statement | expression)
+block                   = <'do'> endl statement* ws? <'end'>
+<statement>             = expression endl
+
+(********** Expressions **********)
+(* Cannot be abstracted due to precedence rules; evaluated top to bottom, left associative *)
+<expression>            = subexpression | ternary-expression | binexp
+
+ternary-expression      = ternary-condition ws? <'?'> ws? expression ws? <':'> ws? expression
+<ternary-condition>     = subexpression | binexp
+
+<binexp>                = binexp-logical-or
+<binexp-logical-or>     = binop-logical-or | binexp-logical-and
+<binexp-logical-and>    = binop-logical-and | binexp-equality
+<binexp-equality>       = binop-equality | binexp-relational
+<binexp-relational>     = binop-relational | binexp-in
+<binexp-in>             = binop-in | binexp-bitwise
+<binexp-bitwise>        = binop-bitwise | binexp-bitshift
+<binexp-bitshift>       = binop-bitshift | binexp-plusminus
+<binexp-plusminus>      = binop-plusminus | binexp-percent
+<binexp-percent>        = binop-percent | binexp-muldiv
+<binexp-muldiv>         = binop-muldiv | unexp
+<unexp>                 = unary-expression | binexp-pow
+<binexp-pow>            = binop-pow | binexp-terminal
+<binexp-terminal>       = subexpression | call-expression | variable | literal
+
+binop-logical-or        = binexp-logical-or ws ('or' | 'xor') ws binexp-logical-and
+binop-logical-and       = binexp-logical-and ws 'and' ws binexp-equality
+binop-equality          = binexp-equality ws ('==' | '!=') ws binexp-relational
+binop-relational        = binexp-relational ws ('>' | '>=' | '<' | '<=') ws binexp-in
+binop-in                = binexp-in ws 'in' ws (subexpression | call-expression | variable | map-literal | list-literal)
+binop-bitwise           = binexp-bitwise ('bit-and' | 'bit-or' | 'bit-xor') ws binexp-bitshift
+binop-bitshift          = binexp-bitshift ws ('bit-shl' | 'bit-shr') ws binexp-plusminus
+binop-plusminus         = binexp-plusminus ws ('+' | '-') ws binexp-percent
+binop-percent           = binexp-percent '%' ws <'of'> ws binexp-muldiv
+binop-muldiv            = binexp-muldiv ws ('*' | '/' | 'mod') ws unexp
+binop-pow               = binexp-pow ws '^' ws binexp-terminal
+
+<subexpression>         = <'('> ws? expression ws? <')'>
+unary-expression        = unary-operator (subexpression | call-expression | variable | literal)
+<unary-operator>        = ('not' ws) | '-' | '~'
+
+call-expression         = <'['> variable <':'> ws? (call-argument-list ws?)? <']'>  
+(*<call-arguments>        = (call-argument-list (<','> ws? call-keyword-arguments)?) | call-keyword-arguments *)
+<call-argument-list>      = expression (ws? <','> ws? expression)*
+(* Decide if we need them...
+call-keyword-arguments  = key-value-pair (ws? <','> ws? key-value-pair)* 
+*)
+
+<variable>              = dynamic-lookup | static-lookup-expr
+<static-lookup-expr>    = static-lookup | dynamic-var-expr
+<dynamic-var-expr>      = dynamic-var | static-var-expr
+<static-var-expr>       = static-var
+static-lookup           = (map-literal | list-literal | dynamic-var-expr | dynamic-lookup) (ws? <'.'> ws? (integer | identifier))+
+dynamic-lookup          = variable ws? <'.'> ws? (subexpression | call-expression | slice-expression | dynamic-var)
+dynamic-var             = <'#'> identifier
+static-var              = identifier
+
+slice-expression        = <'['> (slice-value (<':'> slice-value (<':'> slice-value)?)?)? <']'>
+
+(********** Values **********)
+<literal>               = number | boolean | string | keyword-value | list-literal | map-literal | function-literal
+string                  = <'\''> #'[^\'\\]*(\\.[^\'\\]*)*' <'\''>
+integer                 = '-'? numeric
+float                   = ('-'? numeric)? '.' numeric
+boolean                 = true | false
+true                    = <'true'> | <'yes'>
+false                   = <'false'> | <'no'>
+<number>                = integer | float
+<numeric>               = #'[0-9]+'
+<keyword-literal>       = #'[a-zA-Z_-][a-zA-Z_0-9-]*'
+keyword-set             = <'\\'> (keyword-literal (<','> keyword-literal)*) <'\\'>
+keyword                 = <'\\'> keyword-literal
+<keyword-value>         = keyword-set / keyword
+list-literal            = <'['> ws? (expression (ws? <','> ws? expression)* ws?)? <']'>
+map-literal             = <'{'> ws? (key-value-pair (ws? <','> ws? key-value-pair)* ws?)? <'}'>
+key-value-pair          = identifier ws? <':'> ws? expression
+function-literal        = (null-arguments | argument-list) ws? <'->'> ws? (expression | block)
+argument-list           = identifier type-annotation? (ws? <','> ws? identifier type-annotation?)*
+<null-arguments>        = <'('> ws? <')'>
+<slice-value>           = variable | integer | string | boolean | keyword-value
+
+type-annotation         = ws? <'::'> ws? type-name
+type-name               = 'int' | 'float' | 'text' | 'list' | 'table'
+
+<alphanumeric>          = #'[a-zA-Z_][a-zA-Z_0-9]*'
+identifier              = #"[a-zA-Z_-]+[a-zA-Z_0-9-]*"
+raw-text                = #"^(?!\=\>).*"
+
+(********** Whitespace **********)
+<wsnl>                  = (<ws> | <comment> | <newline>)+
+<endl>                  = ((<ws>? (<comment> | <newline>))+ <ws>?) | (<ws>? <#"$">)
+comment                 = ';' comment-inside* newline
+comment-inside          = #'.'
+<ws>                    = <#'[,\s]+'>
+newline                 = '\n'
+text                    = #'[^\n$]*'
