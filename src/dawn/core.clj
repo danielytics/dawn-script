@@ -140,6 +140,23 @@
        (map (fn [[k state]] [k (-process-state (first state))]))
        (into {})))
 
+(defn evaluate
+  [context [node-type & [value :as args] :as ast]]
+  (case node-type
+    ; Literals
+    :integer value
+    :float value
+    :string value
+    :boolean value
+    :list-literal (mapv #(evaluate context %) args)
+    :map-literal (into {} (for [[k v] value] [k (evaluate context v)]))
+    ; Variable access
+    :static-var (get (:inputs context) value)
+    :dynamic-var (get (:data context) value)
+    ; Field access
+    :static-lookup (get-in (evaluate context value) (second args))
+    :dynamic-lookup (get (evaluate context value) (evaluate context (second args)))))
+
 #_
 (clojure.pprint/pprint
  (get-in

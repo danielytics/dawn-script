@@ -63,3 +63,32 @@
               [[:binary-op :+ [:integer 1] [:static-lookup [:map-literal {:x [:dynamic-var :test]}] [:x]]]
                               [:call [:static-var :abc] [[:dynamic-var :a]] {}]] {}])))))
 
+
+(deftest evaluation-test
+  ;; Test literals
+  (doseq [[ast expected] {; Basic types
+                          [:integer 5]                                      5
+                          [:float 1.2]                                      1.2
+                          [:string "hi"]                                    "hi"
+                          [:boolean true]                                   true
+                            ; Composite types
+                          [:list-literal [:integer 1] [:integer 2]]         [1 2]
+                          [:map-literal {:a [:integer 1]
+                                         :b [:integer 2]}] {:a 1
+                                                            :b 2}}]
+    (testing (str "evaluate literal: " (first ast))
+      (is (= expected
+             (dawn/evaluate {} ast)))))
+  ;; Test variables and field access
+  (doseq [[ast expected] {[:static-var :a]                                            10
+                          [:dynamic-var :b]                                           20
+                          [:static-lookup [:list-literal [:integer 1]] [0]]           1
+                          [:static-lookup [:map-literal {:a [:integer 2]}] [:a]]      2
+                          [:static-lookup [:static-var :c] [:x]]                      5
+                          [:static-lookup [:dynamic-var :d] [1]]                      7
+                          [:dynamic-lookup [:list-literal [:integer 3]] [:integer 0]] 3}]
+    (testing (str "evaluate variable access: " ast)
+      (is (= expected
+             (dawn/evaluate {:inputs {:a 10 :c {:x 5}}
+                             :data {:b 20 :d [6 7]}} ast)))))
+  )
