@@ -29,6 +29,7 @@
            :map-literal       (fn [& kv-pairs] [:map-literal (into {} kv-pairs)])
            :identifier        keyword
            :static-lookup     (fn [v & path] [:static-lookup v (mapv #(if (vector? %) (second %) %) (vec path))])
+           :unary-expression  (fn [op v] [:unary-op (keyword op) v])
            :binop-plusminus   -transform-binary-op
            :binop-muldiv      -transform-binary-op
            :binop-bitshift    -transform-binary-op
@@ -140,6 +141,30 @@
        (map (fn [[k state]] [k (-process-state (first state))]))
        (into {})))
 
+(def binary-operators
+  {; Arithmetic
+   :+ + :- - :* * :/ /
+   :percent #(* (/ %1 100) %2)
+   :mod mod
+   ; Boolean
+   :and #(and %1 %2)
+   :or #(or %1 %2)
+   :xor #(and (or %1 %2) (not (and %1 %2)))
+   ; Equality
+   :== = :!= not=
+   ; Comparison
+   :> > :>= >= :< < :<= <=
+   ; Bitwise
+   :bit-and bit-and
+   :bit-or bit-or
+   :bit-xor bit-xor
+   :bit-shl bit-shift-left
+   :bit-shr bit-shift-right
+   :bit-clear bit-clear
+   :bit-set bit-set
+   :bit-flip bit-flip
+   :bit-test bit-test})
+
 (defn evaluate
   [context [node-type & [value :as args] :as ast]]
   (case node-type
@@ -155,7 +180,16 @@
     :dynamic-var (get (:data context) value)
     ; Field access
     :static-lookup (get-in (evaluate context value) (second args))
-    :dynamic-lookup (get (evaluate context value) (evaluate context (second args)))))
+    :dynamic-lookup (get (evaluate context value) (evaluate context (second args)))
+    ; Unary operators
+    :unary-op (case value
+                :not (not (evaluate context (second args)))
+                :- (- (evaluate context (second args)))
+                :bit-not (bit-not (evaluate context (second args))))
+    ; Binary operators
+    :binary-op (let [lhs (evaluate context (second args))
+                     rhs (evaluate context (second (next args)))]
+                 ((get binary-operators value) lhs rhs))))
 
 #_
 (clojure.pprint/pprint

@@ -30,16 +30,16 @@ binop-logical-and       = binexp-logical-and ws 'and' ws binexp-equality
 binop-equality          = binexp-equality ws ('==' | '!=') ws binexp-relational
 binop-relational        = binexp-relational ws ('>' | '>=' | '<' | '<=') ws binexp-in
 binop-in                = binexp-in ws 'in' ws (subexpression | call-expression | variable | map-literal | list-literal)
-binop-bitwise           = binexp-bitwise ('bit-and' | 'bit-or' | 'bit-xor') ws binexp-bitshift
+binop-bitwise           = binexp-bitwise ('bit-and' | 'bit-or' | 'bit-xor' | 'bit-test' | 'bit-set' | 'bit-clear' | 'bit-flip') ws binexp-bitshift
 binop-bitshift          = binexp-bitshift ws ('bit-shl' | 'bit-shr') ws binexp-plusminus
 binop-plusminus         = binexp-plusminus ws ('+' | '-') ws binexp-percent
-binop-percent           = binexp-percent '%' ws <'of'> ws binexp-muldiv
+binop-percent           = binexp-percent percent ws <'of'> ws binexp-muldiv
 binop-muldiv            = binexp-muldiv ws ('*' | '/' | 'mod') ws unexp
 binop-pow               = binexp-pow ws '^' ws binexp-terminal
+percent                 = <'%'>
 
 <subexpression>         = <'('> ws? expression ws? <')'>
-unary-expression        = unary-operator (subexpression | call-expression | variable | literal)
-<unary-operator>        = ('not' ws) | '-' | '~'
+unary-expression        = ('-' ws? (subexpression | call-expression)) | (('not' | 'bit-not') ws (subexpression | call-expression | variable | literal))
 
 call-expression         = <'['> variable <':'> ws? (call-argument-list ws?)? <']'>  
 (*<call-arguments>        = (call-argument-list (<','> ws? call-keyword-arguments)?) | call-keyword-arguments *)

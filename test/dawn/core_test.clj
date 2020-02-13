@@ -33,13 +33,15 @@
              "=> a.#b"                        [:dynamic-lookup [:static-var :a] [:dynamic-var :b]]
              "=> #a.b"                        [:static-lookup [:dynamic-var :a] [:b]]
              "=> a.#b.c"                      [:static-lookup [:dynamic-lookup [:static-var :a] [:dynamic-var :b]] [:c]]
+            ; Unary operators
+             "=> not true"                    [:unary-op :not [:boolean true]]
+             "=> -(a)"                        [:unary-op :- [:static-var :a]]
              ; Expressions
              "=> 1 + 2"                       [:binary-op :+ [:integer 1] [:integer 2]]
              "=> 1 + 2 * 3"                   [:binary-op :+ [:integer 1] [:binary-op :* [:integer 2] [:integer 3]]]
              "=> 1 * 2 + 3"                   [:binary-op :+ [:binary-op :* [:integer 1] [:integer 2]] [:integer 3]]
              "=> (1 + 2) * 3"                 [:binary-op :* [:binary-op :+ [:integer 1] [:integer 2]] [:integer 3]]
-             "=> 1 in [1, 2, 3]"              [:binary-op :in [:integer 1] [:list-literal [:integer 1] [:integer 2] [:integer 3]]]
-             ; Function calls
+             "=> 1 in [1, 2, 3]"              [:binary-op :in [:integer 1] [:list-literal [:integer 1] [:integer 2] [:integer 3]]]                                                                ; Function calls
              "=> [foo:]"                      [:call [:static-var :foo] [] {}]
              "=> [foo: 1, 2]"                 [:call [:static-var :foo] [[:integer 1] [:integer 2]] {}]
              "=> [foo.bar: 1 + 2, [abc: #a]]" [:call [:static-lookup [:static-var :foo] [:bar]] [[:binary-op :+ [:integer 1] [:integer 2]] [:call [:static-var :abc] [[:dynamic-var :a]] {}]] {}]}]
@@ -77,8 +79,8 @@
                                          :b [:integer 2]}] {:a 1
                                                             :b 2}}]
     (testing (str "evaluate literal: " (first ast))
-      (is (= expected
-             (dawn/evaluate {} ast)))))
+      (is (= expected (dawn/evaluate {} ast)))))
+
   ;; Test variables and field access
   (doseq [[ast expected] {[:static-var :a]                                            10
                           [:dynamic-var :b]                                           20
@@ -89,6 +91,20 @@
                           [:dynamic-lookup [:list-literal [:integer 3]] [:integer 0]] 3}]
     (testing (str "evaluate variable access: " ast)
       (is (= expected
-             (dawn/evaluate {:inputs {:a 10 :c {:x 5}}
-                             :data {:b 20 :d [6 7]}} ast)))))
+             (dawn/evaluate {:inputs {:a 10
+                                      :c {:x 5}}
+                             :data   {:b 20
+                                      :d [6 7]}} ast)))))
+  
+  ; Test unary expressions
+  (testing "unary expressions"
+    (is (= true (dawn/evaluate {} [:unary-op :not [:boolean false]])))
+    (is (= false (dawn/evaluate {} [:unary-op :not [:boolean true]])))
+    (is (= -2 (dawn/evaluate {} [:unary-op :- [:integer 2]])))
+    (is (= 3.2 (dawn/evaluate {} [:unary-op :- [:float -3.2]]))))
+  
+  ; Test binary expressions
+  (doseq [[ast expected] {[:binary-op :+ [:integer 2] [:integer 3]] 5}]
+    (testing (str "binary expression: " (second ast))
+      (is (= expected (dawn/evaluate {} ast)))))
   )
