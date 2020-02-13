@@ -61,7 +61,7 @@ slice-expression        = <'['> (slice-value (<':'> slice-value (<':'> slice-val
 
 (********** Values **********)
 <literal>               = number | boolean | string | keyword-value | list-literal | map-literal | function-literal
-string                  = <'\''> #'[^\'\\]#"^(?!\=\>).*"(\\.[^\'\\]*)*' <'\''>
+string                  = <'\''> #'[^\'\\]*(\\.[^\'\\]*)*' <'\''>
 integer                 = '-'? numeric
 float                   = ('-'? numeric)? '.' numeric
 boolean                 = true | false
