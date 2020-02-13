@@ -63,7 +63,7 @@
            (dawn/-capture-variables
              [:call [:static-lookup [:static-var :foo] [:bar]]
               [[:binary-op :+ [:integer 1] [:static-lookup [:map-literal {:x [:dynamic-var :test]}] [:x]]]
-                              [:call [:static-var :abc] [[:dynamic-var :a]] {}]] {}])))))
+               [:call [:static-var :abc] [[:dynamic-var :a]] {}]] {}])))))
 
 
 (deftest evaluation-test

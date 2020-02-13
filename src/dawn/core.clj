@@ -42,6 +42,8 @@
            :binop-pow         -transform-binary-op
            :call-expression   (fn [func-name & args] [:call func-name (vec args) {}])}))))
 
+;(parse (make-parser) "=> 1 + 2")
+
 (defn -find-variables
   "Search the AST for variables by searching the tree for :dynamic-var and :static-var nodes"
   [ast]
@@ -87,6 +89,7 @@
         {:vars (-capture-variables results)
          :ast  results}))))
  
+
 (defmethod to-clj org.tomlj.Parser$1
  ;; Root of a TOML data-structure, acts like a map
   [x _ parser]
@@ -141,6 +144,14 @@
        (map (fn [[k state]] [k (-process-state (first state))]))
        (into {})))
 
+(defn in?
+  "true if coll contains elm"
+  [elem coll]
+  (if (or (map? coll)
+          (set? coll))
+    (contains? coll elem)
+    (some #(= elem %) coll)))
+
 (def binary-operators
   {; Arithmetic
    :+ + :- - :* * :/ /
@@ -154,6 +165,8 @@
    :== = :!= not=
    ; Comparison
    :> > :>= >= :< < :<= <=
+   ; In
+   :in in?
    ; Bitwise
    :bit-and bit-and
    :bit-or bit-or
@@ -166,7 +179,7 @@
    :bit-test bit-test})
 
 (defn evaluate
-  [context [node-type & [value :as args] :as ast]]
+  [context [node-type & [value :as args]]]
   (case node-type
     ; Literals
     :integer value
