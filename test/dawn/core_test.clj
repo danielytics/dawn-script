@@ -107,4 +107,16 @@
   (doseq [[ast expected] {[:binary-op :+ [:integer 2] [:integer 3]] 5}]
     (testing (str "binary expression: " (second ast))
       (is (= expected (dawn/evaluate {} ast)))))
+  
+  
+  ; Test function calls.
+  (let [context {:libs {:core {:add-2 {:params  [:integer]
+                                       :returns :integer
+                                       :name    "add-2"
+                                       :doc     "Adds two to input"
+                                       :fn      #(+ % 2)}}}
+                 :inputs {:add-2 (dawn/fn-ref :core :add-2)}}]
+    (doseq [[ast expected] {[:call [:static-var :add-2] [[:integer 10]] {}] 12}]
+      (testing (str "function call: " (second (second ast)))
+        (is (= expected (dawn/evaluate context ast))))))
   )

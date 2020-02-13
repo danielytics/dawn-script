@@ -1,13 +1,14 @@
 (ns dawn.core
   (:require [instaparse.core :as insta]
             [clojure.edn :as edn]
-            [clojure.walk])
+            [clojure.java.io :as io]
+            [clojure.string :as string])
   (:import [org.tomlj Toml]))
 
 (defn make-parser
   "Create an instaparse parser function from a grammar file"
   []
-  (insta/parser (clojure.java.io/resource "grammar.ebnf")))
+  (insta/parser (io/resource "grammar.ebnf")))
 
 (defn -transform-binary-op
   "Transforms [left op-string right] into [:binary-op op-keyword left right]"
@@ -144,6 +145,46 @@
        (map (fn [[k state]] [k (-process-state (first state))]))
        (into {})))
 
+(defprotocol FuncRef
+  (path [_] "Gets the path to the function object")
+  (lib [_] "Gets the library in which the funciton object resides"))
+
+(deftype FunctionVar [path]
+  FuncRef
+  (path [_] path)
+  (lib [_] (first path)))
+
+(defn fn-ref
+  [lib key]
+  (->FunctionVar [lib key]))
+
+(defn fn-ref?
+  [v]
+  (satisfies? FuncRef v))
+
+(defn -call-function
+  [context func-obj parameters]
+  (when (fn-ref? func-obj)
+    (when-let [func (get-in (:libs context) (path func-obj))]
+      (if (= (count parameters)
+             (count (:params func)))
+        (apply (:fn func) parameters)
+        (throw [:error (str "Invalid number of arguments. Expected " (count (:params func)) " got " (count parameters))])))))
+
+(defn find-libraries
+  "By convention, variable names that start with an uppercase character are library names, unless the variable name is all-caps"
+  [code]
+  (->> code
+       (:vars)
+       (:static)
+       (map name)
+       (filter #(let [upper (string/upper-case %)]
+                  (and (= (first %) (first upper))
+                       (not= % upper))))
+       (set)))
+
+;(find-libraries {:vars {:static #{:foo :Bar :QUUX}}})
+
 (defn in?
   "true if coll contains elm"
   [elem coll]
@@ -202,7 +243,11 @@
     ; Binary operators
     :binary-op (let [lhs (evaluate context (second args))
                      rhs (evaluate context (second (next args)))]
-                 ((get binary-operators value) lhs rhs))))
+                 ((get binary-operators value) lhs rhs))
+    ; Function calls
+    :call (let [func-obj (evaluate context value)
+                parameters (map #(evaluate context %) (second args))]
+            (-call-function context func-obj parameters))))
 
 #_
 (clojure.pprint/pprint
