@@ -2,7 +2,8 @@
   (:require [instaparse.core :as insta]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.string :as string])
+            [clojure.string :as string]
+            [slingshot.slingshot :refer [throw+ try+]])
   (:import [org.tomlj Toml]))
 
 (defn make-parser
@@ -169,7 +170,22 @@
       (if (= (count parameters)
              (count (:params func)))
         (apply (:fn func) parameters)
-        (throw [:error (str "Invalid number of arguments. Expected " (count (:params func)) " got " (count parameters))])))))
+        (throw+ {:error ::call
+                 :type :bad-arguments
+                 :function (dissoc func :fn)
+                 :parameters parameters
+                 :lib (lib func-obj)
+                 :message (str "Invalid number of arguments. Expected " (count (:params func)) " got " (count parameters))})))))
+
+
+#_
+(try+ ; TODO: This error reporting should be used somewhere where it can be reported to the user
+  (-call-function {:libs {:foo {:bar {:name "bar"
+                                      :params [:a :b]}}}} (fn-ref :foo :bar) [])
+  (catch [:error ::call :type :bad-arguments] {:keys [message function lib parameters]}
+    (letfn [(fn->str [params] (str "[" (name lib) "." (:name function) ": " (string/join ", " params) "]"))]
+      (println "Signature:" (fn->str (mapv name (:params function))))
+      (println "Call:" (fn->str parameters)))))
 
 (defn find-libraries
   "By convention, variable names that start with an uppercase character are library names, unless the variable name is all-caps"
@@ -186,7 +202,7 @@
 ;(find-libraries {:vars {:static #{:foo :Bar :QUUX}}})
 
 (defn in?
-  "true if coll contains elm"
+  "true if coll contains elem"
   [elem coll]
   (if (or (map? coll)
           (set? coll))
