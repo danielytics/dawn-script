@@ -104,7 +104,68 @@
     (is (= 3.2 (dawn/evaluate {} [:unary-op :- [:float -3.2]]))))
   
   ; Test binary expressions
-  (doseq [[ast expected] {[:binary-op :+ [:integer 2] [:integer 3]] 5}]
+  (doseq [[ast expected] {; or
+                          [:binary-op :or [:boolean false] [:boolean true]] true
+                          [:binary-op :or [:boolean true] [:boolean false]] true
+                          [:binary-op :or [:boolean false] [:boolean false]] false
+                          ; xor                          
+                          [:binary-op :xor [:boolean false] [:boolean true]] true
+                          [:binary-op :xor [:boolean true] [:boolean false]] true
+                          [:binary-op :xor [:boolean false] [:boolean false]] false
+                          [:binary-op :xor [:boolean true] [:boolean true]] false
+                          ; and
+                          [:binary-op :and [:boolean false] [:boolean false]] false
+                          [:binary-op :and [:boolean true] [:boolean false]] false
+                          [:binary-op :and [:boolean false] [:boolean true]] false
+                          [:binary-op :and [:boolean true] [:boolean true]] true
+                          ; equality
+                          [:binary-op :== [:integer 1] [:integer 2]] false
+                          [:binary-op :== [:string 1] [:integer 2]] false
+                          [:binary-op :!= [:integer 1] [:integer 2]] true
+                          [:binary-op :!= [:string 1] [:integer 2]] true
+                          ; relational
+                          [:binary-op :> [:integer 1] [:integer 2]] false
+                          [:binary-op :> [:integer 1] [:integer 1]] false
+                          [:binary-op :> [:integer 2] [:integer 1]] true
+                          [:binary-op :>= [:integer 1] [:integer 2]] false
+                          [:binary-op :>= [:integer 1] [:integer 1]] true
+                          [:binary-op :>= [:integer 2] [:integer 1]] true
+                          [:binary-op :< [:integer 2] [:integer 1]] false
+                          [:binary-op :< [:integer 2] [:integer 2]] false
+                          [:binary-op :< [:integer 1] [:integer 2]] true
+                          [:binary-op :<= [:integer 2] [:integer 1]] false
+                          [:binary-op :<= [:integer 2] [:integer 2]] true
+                          [:binary-op :<= [:integer 1] [:integer 2]] true
+                          ; in ???
+                          ;[:binary-op :in [:integer 1] [:list-literal 1 2 3]] true
+                          ; bitwise
+                          [:binary-op :bit-and [:integer 12] [:integer 25]] 8
+                          [:binary-op :bit-or [:integer 12] [:integer 25]] 29
+                          [:binary-op :bit-xor [:integer 12] [:integer 25]] 21
+                          [:binary-op :bit-test [:integer 4] [:integer 2]] true
+                          [:binary-op :bit-test [:integer 4] [:integer 1]] false
+                          [:binary-op :bit-set [:integer 4] [:integer 1]] 6
+                          [:binary-op :bit-clear [:integer 6] [:integer 1]] 4
+                          [:binary-op :bit-flip [:integer 6] [:integer 1]] 4
+                          [:binary-op :bit-flip [:integer 4] [:integer 1]] 6
+                          ; bit-shift 
+                          [:binary-op :bit-shl [:integer 4] [:integer 1]] 8
+                          [:binary-op :bit-shr [:integer 16] [:integer 2]] 4
+                          [:binary-op :bit-shl [:integer 16] [:integer 0]] 16
+                          [:binary-op :bit-shr [:integer 16] [:integer 0]] 16
+                          ; plusminus
+                          [:binary-op :+ [:integer 2] [:integer 3]] 5
+                          [:binary-op :- [:integer 2] [:integer 3]] -1
+                          ; percent of ??
+                          ;[:binary-op :of [:integer 10] [:integer 50]] 5
+                          ; muldev
+                          [:binary-op :* [:integer 2] [:integer 3]] 6
+                          [:binary-op :/ [:integer 6] [:integer 3]] 2                          
+                          [:binary-op :mod [:integer 7] [:integer 3]] 1
+                          ; pow ??
+                          ;[:binary-op :^ [:integer 2] [:integer 4]] 16
+                          ; percent ??
+                          [:binary-op :percent [:integer 10] [:integer 50]] 5}]
     (testing (str "binary expression: " (second ast))
       (is (= expected (dawn/evaluate {} ast)))))
   )
