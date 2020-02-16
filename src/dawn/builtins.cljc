@@ -13,10 +13,17 @@
 ; map/integer, map/float, map/number, map/boolean, map/text -- map with specific value types
 ; any -- parameter can be anything
 
-(defn core-doctext
-  [context func]
+(defn core-apply
+  [context function arguments]
   (-> (:libs context)
-      (get-in (types/path func))
+      (get-in (types/path function))
+      (:fn)
+      (apply arguments)))
+
+(defn core-doctext
+  [context function]
+  (-> (:libs context)
+      (get-in (types/path function))
       (:doc)))
 
 (defn math-abs
@@ -55,6 +62,11 @@
                     :params [:number :number]
                     :return :number
                     :fn     min}
+          :apply   {:doc {:text "Apply function to list of arguments"
+                          :params ["function" "arguments"]}
+                    :params [:context :any :list]
+                    :return :any
+                    :fn core-apply}
           :doctext {:doc    {:text   "Returns the documentation text for a function"
                              :params ["function"]}
                     :params [:context :any]

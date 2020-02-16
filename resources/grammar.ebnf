@@ -41,7 +41,7 @@ percent                 = <'%'>
 <subexpression>         = <'('> ws? expression ws? <')'>
 unary-expression        = ('-' ws? (subexpression | call-expression)) | (('not' | 'bit-not') ws (subexpression | call-expression | variable | literal))
 
-call-expression         = <'['> variable <':'> ws? (call-argument-list ws?)? <']'>  
+call-expression         = <'['> function-var <':'> ws? (call-argument-list ws?)? <']'>  
 (*<call-arguments>        = (call-argument-list (<','> ws? call-keyword-arguments)?) | call-keyword-arguments *)
 <call-argument-list>      = expression (ws? <','> ws? expression)*
 (* Decide if we need them...
@@ -56,6 +56,7 @@ static-lookup           = (map-literal | list-literal | dynamic-var-expr | dynam
 dynamic-lookup          = variable ws? <'.'> ws? (subexpression | call-expression | slice-expression | dynamic-var)
 dynamic-var             = <'#'> identifier
 static-var              = identifier
+function-var            = static-var (ws? <'.'> ws? (integer | identifier))*
 
 slice-expression        = <'['> (slice-value (<':'> slice-value (<':'> slice-value)?)?)? <']'>
 

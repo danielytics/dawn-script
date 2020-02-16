@@ -31,6 +31,10 @@
            :map-literal       (fn [& kv-pairs] [:map-literal (into {} kv-pairs)])
            :identifier        keyword
            :static-lookup     (fn [v & path] [:static-lookup v (mapv #(if (vector? %) (second %) %) (vec path))])
+           :function-var      (fn [func & fields]
+                                 (if (seq fields)
+                                   [:static-lookup func (vec fields)]
+                                   func))
            :unary-expression  (fn [op v] [:unary-op (keyword op) v])
            :binop-plusminus   -transform-binary-op
            :binop-muldiv      -transform-binary-op
@@ -56,7 +60,7 @@
        (filter vector?)
        ; Only keep the vectors where 'type' is one we're interested in
        (filter #(contains? #{:dynamic-var :static-var} (first %)))
-       ; Group by 'type', returning a map where the keys are the type and values are a list of nodes
+       ; Group by 'type', returning a map where the keys are the type and value are a list of nodes
        (group-by first)))
 
 (defn -capture-variables
@@ -67,6 +71,22 @@
     {:static  (set (map second static-var))
      :dynamic (set (map second dynamic-var))}))
 
+
+(defn -find-functions
+  [ast]
+  (->> ast
+       (tree-seq #(or (vector? %)
+                      (map? %))
+                 identity)
+       (filter vector?)
+       (filter #(= (first %) :call))
+       (map (comp next second))
+       (map #(into (vec (next (first %))) (second %)))
+       (set)))
+
+(parse (make-parser) "=> a + [List.append: b + c, 100 * [Math.abs: 12]] - 1")
+(-find-functions (parse (make-parser) "=> a + [List.append: b + c, 100 * [Math.abs: 12]] - 1"))
+
 (declare ^:dynamic parse-errors)
 
 (defmulti to-clj (fn [obj _ _] (type obj)))
@@ -76,19 +96,20 @@
   ;; A string, process it by applying the parser function
   [x path parser]
   (let [results (parse parser x)]
-    (let [error (insta/get-failure results)]
-      (swap! parse-errors conj {:path    path
-                                :failure error})
-      {:error error})
+    (if (insta/failure? results)
+      (let [error (insta/get-failure results)]
+        (swap! parse-errors conj {:path    path
+                                  :failure error})
+        {:error error})
       ; If this string parses correctly, return the parsed value
-    (let [results (second results)]
-      (case (first results)
+      (let [results (second results)]
+        (case (first results)
           ; Raw text (strings not starting with "=>") are returned as strings
-        :raw-text (second results)
+          :raw-text (second results)
           ; Code strings arereturned as a data structure containing the variables accessed and the parsed abstract syntax tree
-        (types/formula
-          {:vars (-capture-variables results)
-           :ast  results})))))
+          (types/formula
+           {:vars (-capture-variables results)
+            :ast  results}))))))
 
 (defmethod to-clj org.tomlj.Parser$1
  ;; Root of a TOML data-structure, acts like a map
@@ -119,9 +140,8 @@
   "Take a parser function and source string and convert source string into a tree structure"
   [parser source]
   (binding [parse-errors (atom [])]
-    (let [results (to-clj
-                   (Toml/parse source)
-                   [] parser)
+    (let [toml-obj (Toml/parse source)
+          results (to-clj toml-obj [] parser)
           errors  @parse-errors]
       (if (seq errors)
         (do

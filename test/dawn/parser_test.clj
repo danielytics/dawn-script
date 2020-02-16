@@ -1,6 +1,7 @@
 (ns dawn.parser-test
   (:require [clojure.test :refer :all]
-            [dawn.parser :as dawn]))
+            [dawn.parser :as dawn]
+            [instaparse.core :as insta]))
 
 
 (deftest analysis-test
@@ -53,13 +54,22 @@
              "=> 1 * 2 + 3"                   [:binary-op :+ [:binary-op :* [:integer 1] [:integer 2]] [:integer 3]]
              "=> (1 + 2) * 3"                 [:binary-op :* [:binary-op :+ [:integer 1] [:integer 2]] [:integer 3]]
              "=> 1 in [1, 2, 3]"              [:binary-op :in [:integer 1] [:list-literal [:integer 1] [:integer 2] [:integer 3]]]
+             ; Function calls
              "=> [foo:]"                      [:call [:static-var :foo] [] {}]
              "=> [foo: 1, 2]"                 [:call [:static-var :foo] [[:integer 1] [:integer 2]] {}]
+             "=> [foo.a.b.c: 1, 2]"           [:call [:static-lookup [:static-var :foo] [:a :b :c]] [[:integer 1] [:integer 2]] {}]
              "=> [foo.bar: 1 + 2, [abc: #a]]" [:call [:static-lookup [:static-var :foo] [:bar]] [[:binary-op :+ [:integer 1] [:integer 2]] [:call [:static-var :abc] [[:dynamic-var :a]] {}]] {}]}]
 
       (testing (str "expression: " source)
         (is (=  [:dawn expected]
                 (dawn/parse parser source)))))
+    
+    (doseq [source [; Functions cannot be determined dynamically
+                    "=> [#foo:]"
+                    "=> [:foo.#bar:]"
+                    "=> [foo.(var):]"]]
+      (testing (str "Invalid source causes parse failure: " source)
+        (is (insta/failure? (dawn/parse parser source)))))
 
     (testing "precedence matches bracketed expressions"
       (let [a "=> 1 + 2 * 3 - 4 and 5 + 2 * 3 ^ -2"
