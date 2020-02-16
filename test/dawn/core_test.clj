@@ -3,16 +3,6 @@
             [dawn.core :as dawn]
             [dawn.types :as types]))
 
-(deftest analysis-test
-  (testing "capture of variables in expressions"
-    (is (= {:static #{:foo :abc}
-            :dynamic #{:a :test}}
-           (dawn/-capture-variables
-             [:call [:static-lookup [:static-var :foo] [:bar]]
-              [[:binary-op :+ [:integer 1] [:static-lookup [:map-literal {:x [:dynamic-var :test]}] [:x]]]
-               [:call [:static-var :abc] [[:dynamic-var :a]] {}]] {}])))))
-
-
 (deftest evaluation-test
   ;; Test literals
   (doseq [[ast expected] {; Basic types

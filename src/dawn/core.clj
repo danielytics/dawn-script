@@ -2,8 +2,7 @@
   (:require [clojure.string :as string]
             [slingshot.slingshot :refer [throw+ try+]]
             [dawn.types :as types]
-            [dawn.builtins :as builtins])
-  (:import [org.tomlj Toml]))
+            [dawn.builtins :as builtins]))
 
 (defn -process-state
   [state]

@@ -2,6 +2,17 @@
   (:require [clojure.test :refer :all]
             [dawn.parser :as dawn]))
 
+
+(deftest analysis-test
+  (testing "capture of variables in expressions"
+    (is (= {:static  #{:foo :abc}
+            :dynamic #{:a :test}}
+           (dawn/-capture-variables
+            [:call [:static-lookup [:static-var :foo] [:bar]]
+             [[:binary-op :+ [:integer 1] [:static-lookup [:map-literal {:x [:dynamic-var :test]}] [:x]]]
+              [:call [:static-var :abc] [[:dynamic-var :a]] {}]] {}])))))
+
+
 (deftest grammar-test
   (let [parser (dawn/make-parser)]
     (testing "raw text should be untransformed"
