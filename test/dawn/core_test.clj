@@ -156,15 +156,13 @@
                           ; plusminus
                           [:binary-op :+ [:integer 2] [:integer 3]] 5
                           [:binary-op :- [:integer 2] [:integer 3]] -1
-                          ; percent of ??
-                          ;[:binary-op :of [:integer 10] [:integer 50]] 5
                           ; muldev
                           [:binary-op :* [:integer 2] [:integer 3]] 6
                           [:binary-op :/ [:integer 6] [:integer 3]] 2                          
                           [:binary-op :mod [:integer 7] [:integer 3]] 1
                           ; pow ??
-                          ;[:binary-op :^ [:integer 2] [:integer 4]] 16
-                          ; percent ??
+                          ;[:binary-op :pow [:integer 2] [:integer 4]] 16
+                          ; percent
                           [:binary-op :percent [:integer 10] [:integer 50]] 5}]
     (testing (str "binary expression: " (second ast))
       (is (= expected (dawn/evaluate {} ast)))))
