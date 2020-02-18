@@ -28,7 +28,7 @@
                           [:dynamic-lookup [:list-literal [:integer 3]] [:integer 0]] 3}]
     (testing (str "evaluate variable access: " ast)
       (is (= expected
-             (dawn/evaluate {:inputs {:a 10
+             (dawn/evaluate {:static {:a 10
                                       :c {:x 5}}
                              :data   {:b 20
                                       :d [6 7]}} ast)))))
@@ -100,7 +100,8 @@
                           ; pow ??
                           ;[:binary-op :pow [:integer 2] [:integer 4]] 16
                           ; percent
-                          [:binary-op :percent [:integer 10] [:integer 50]] 5}]
+                          [:binary-op :percent [:integer 10] [:integer 50]] 5
+                          [:binary-op :++ [:list-literal [:integer 1]] [:list-literal [:integer 2]]] [1 2]}]
     (testing (str "binary expression: " (second ast))
       (is (= expected (dawn/evaluate {} ast)))))
   
@@ -111,7 +112,7 @@
                                        :name    "add-2"
                                        :doc     "Adds two to input"
                                        :fn      #(+ % 2)}}}
-                 :inputs {:add-2 (types/fn-ref :core :add-2)}}]
-    (doseq [[ast expected] {[:call [:static-var :add-2] [[:integer 10]] {}] 12}]
+                 :static {:funcs {:add-2 (types/fn-ref :core :add-2)}}}]
+    (doseq [[ast expected] {[:call [:static-lookup [:static-var :funcs] [:add-2]] [[:integer 10]] {}] 12}]
       (testing (str "function call: " (second (second ast)))
         (is (= expected (dawn/evaluate context ast)))))))

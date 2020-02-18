@@ -43,6 +43,7 @@
            :binop-bitwise     -transform-binary-op
            :binop-equality    -transform-binary-op
            :binop-in          -transform-binary-op
+           :binop-concat      -transform-binary-op
            :binop-logical-and -transform-binary-op
            :binop-logical-or  -transform-binary-op
            :binop-percent     -transform-binary-op

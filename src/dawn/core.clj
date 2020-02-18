@@ -55,6 +55,6 @@
 
 (execute
  (load-string (slurp "resources/strategy.toml"))
- {:inputs {}
-  :config {}
+ {:inputs {:status {:upper1 true}}
+  :config {:order-sizes [10 10 10 10]}
   :data {}})

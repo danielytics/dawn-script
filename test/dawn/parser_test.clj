@@ -56,6 +56,8 @@
              "=> 1 * 2 + 3"                   [:binary-op :+ [:binary-op :* [:integer 1] [:integer 2]] [:integer 3]]
              "=> (1 + 2) * 3"                 [:binary-op :* [:binary-op :+ [:integer 1] [:integer 2]] [:integer 3]]
              "=> 1 in [1, 2, 3]"              [:binary-op :in [:integer 1] [:list-literal [:integer 1] [:integer 2] [:integer 3]]]
+             "=> [1, 2] ++ [3, 4]"            [:binary-op :++ [:list-literal [:integer 1] [:integer 2]] [:list-literal [:integer 3] [:integer 4]]]
+             "=> true ? 1 : 2"                [:ternary-expression [:boolean true] [:integer 1] [:integer 2]]
              ; Function calls
              "=> [foo:]"                      [:call [:static-var :foo] [] {}]
              "=> [foo: 1, 2]"                 [:call [:static-var :foo] [[:integer 1] [:integer 2]] {}]

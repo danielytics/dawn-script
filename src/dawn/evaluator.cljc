@@ -27,6 +27,15 @@
       (contains? coll elem)
       (some #(= elem %) coll))))
 
+(defn concatenate
+  [a b]
+  (when (= (type a)
+           (type b))
+    (cond
+      (string? a) (str a b)
+      (vector? a) (into a b)
+      (map? a) (merge a b))))
+
 (def binary-operators
   {; Arithmetic
    :+ + :- - :* * :/ /
@@ -40,8 +49,9 @@
    :== = :!= not=
    ; Comparison
    :> > :>= >= :< < :<= <=
-   ; In
+   ; Lists
    :in in?
+   :++ concatenate
    ; Bitwise
    :bit-and bit-and
    :bit-or bit-or
@@ -55,33 +65,42 @@
 
 (defn evaluate
   [context [node-type & [value :as args]]]
-  (case node-type
+  (try
+    (case node-type
     ; Literals
-    :integer value
-    :float value
-    :string value
-    :boolean value
-    :list-literal (mapv #(evaluate context %) args)
-    :map-literal (into {} (for [[k v] value] [k (evaluate context v)]))
+      :integer value
+      :float value
+      :string value
+      :boolean value
+      :list-literal (mapv #(evaluate context %) args)
+      :map-literal (into {} (for [[k v] value] [k (evaluate context v)]))
     ; Variable access
-    :static-var (get (:inputs context) value)
-    :dynamic-var (get (:data context) value)
+      :static-var (get (:static context) value)
+      :dynamic-var (get (:data context) value)
     ; Field access
-    :static-lookup (get-in (evaluate context value) (second args))
-    :dynamic-lookup (get (evaluate context value) (evaluate context (second args)))
+      :static-lookup (get-in (evaluate context value) (second args))
+      :dynamic-lookup (get (evaluate context value)
+                           (let [key (evaluate context (second args))]
+                             (if (string? key) (keyword key) key)))
     ; Unary operators
-    :unary-op (case value
-                :not (not (evaluate context (second args)))
-                :- (- (evaluate context (second args)))
-                :bit-not (bit-not (evaluate context (second args))))
+      :unary-op (case value
+                  :not (not (evaluate context (second args)))
+                  :- (- (evaluate context (second args)))
+                  :bit-not (bit-not (evaluate context (second args))))
     ; Binary operators
-    :binary-op (let [lhs (evaluate context (second args))
-                     rhs (evaluate context (second (next args)))]
-                 ((get binary-operators value) lhs rhs))
+      :binary-op (let [lhs (evaluate context (second args))
+                       rhs (evaluate context (second (next args)))]
+                   ((get binary-operators value) lhs rhs))
+    ; Ternary
+      :ternary-expression (evaluate context (if (evaluate context value)
+                                              (first args)
+                                              (second args)))
     ; Function calls
-    :call (let [func-obj (evaluate context value)
-                parameters (map #(evaluate context %) (second args))]
-            (-call-function context func-obj parameters))))
+      :call (let [func-obj   (evaluate context value)
+                  parameters (map #(evaluate context %) (second args))]
+              (-call-function context func-obj parameters)))
+(catch Exception _
+  (println "Evaluation error in:" node-type args))))
 
 
 #_

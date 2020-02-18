@@ -59,13 +59,8 @@ description = "Line tracking strategy with lots of smarts"
 
 # Global data values, used below
 [data]
-    [data.upper-lines]
-        type = "list"
-        value = ["upper1", "upper2", "upper3", "upper4"]
-
-    [data.lower-lines]
-        type = "list"
-        value = ["lower1", "lower2", "lower3", "lower4"]
+    upper-lines = ["upper1", "upper2", "upper3", "upper4"]
+    lower-lines = ["lower1", "lower2", "lower3", "lower4"]
 
 # Strategy logic
 [states]
@@ -83,8 +78,8 @@ description = "Line tracking strategy with lots of smarts"
         # Sync eight orders with the four upper and four lower line values
         [[states.state.orders]]
             # Duplicate this order for each line (#line will be bound to each value in the list in turn)
-            foreach.line = "=> #upper-lines + #lower-lines"
-            tag = "entry/#line"
+            foreach.line = "=> #upper-lines ++ #lower-lines"
+            tag = "=> 'entry/' ++ #line"
             type = "limit"
             side = "=> #line in #upper-lines ? 'sell' : 'buy'"
             # List.find will return a value in range 0..7, by taking modulus 4, any value in range 4..7 will be changed to 0..3

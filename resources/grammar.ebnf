@@ -15,7 +15,8 @@ ternary-expression      = ternary-condition ws? <'?'> ws? expression ws? <':'> w
 <binexp-logical-and>    = binop-logical-and | binexp-equality
 <binexp-equality>       = binop-equality | binexp-relational
 <binexp-relational>     = binop-relational | binexp-in
-<binexp-in>             = binop-in | binexp-bitwise
+<binexp-in>             = binop-in | binexp-concat
+<binexp-concat>         = binop-concat | binexp-bitwise
 <binexp-bitwise>        = binop-bitwise | binexp-bitshift
 <binexp-bitshift>       = binop-bitshift | binexp-plusminus
 <binexp-plusminus>      = binop-plusminus | binexp-percent
@@ -30,6 +31,7 @@ binop-logical-and       = binexp-logical-and ws 'and' ws binexp-equality
 binop-equality          = binexp-equality ws ('==' | '!=') ws binexp-relational
 binop-relational        = binexp-relational ws ('>' | '>=' | '<' | '<=') ws binexp-in
 binop-in                = binexp-in ws 'in' ws (subexpression | call-expression | variable | map-literal | list-literal)
+binop-concat            = binexp-concat ws '++' ws binexp-bitwise
 binop-bitwise           = binexp-bitwise ('bit-and' | 'bit-or' | 'bit-xor' | 'bit-test' | 'bit-set' | 'bit-clear' | 'bit-flip') ws binexp-bitshift
 binop-bitshift          = binexp-bitshift ws ('bit-shl' | 'bit-shr') ws binexp-plusminus
 binop-plusminus         = binexp-plusminus ws ('+' | '-') ws binexp-percent
