@@ -1,9 +1,9 @@
 (ns dawn.core
+  (:refer-clojure :exclude [load-string load-file])
   (:require [clojure.string :as string]
             [slingshot.slingshot :refer [throw+ try+]]
-            [dawn.builtins :as builtins]
-            [dawn.evaluator :as evaluator]
-            [dawn.parser :as parser]))
+            [dawn.parser :as parser]
+            [dawn.runtime :as runtime]))
 
 (defn -process-state
   [state]
@@ -39,7 +39,7 @@
 (defn load-string
   "Loads a TOML string to create a strategy ready for execution."
   [source]
-  (parser/parse
+  (parser/load-toml
     (parser/make-parser)
     source))
 
@@ -49,4 +49,12 @@
 
 (defn execute
   "Execute an instance of a strategy. If :data is {}, a new instance is generated."
-  [strategy instance])
+  [strategy instance]
+  (runtime/execute strategy instance))
+
+
+(execute
+ (load-string (slurp "resources/strategy.toml"))
+ {:inputs {}
+  :config {}
+  :data {}})

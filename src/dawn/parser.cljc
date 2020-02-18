@@ -27,14 +27,15 @@
            :float             (fn [& args] (->> args (apply str) edn/read-string double (vector :float)))
            :true              (constantly true)
            :false             (constantly false)
+           :percent           (constantly :percent)
            :key-value-pair    (fn [k v] [k v])
            :map-literal       (fn [& kv-pairs] [:map-literal (into {} kv-pairs)])
            :identifier        keyword
            :static-lookup     (fn [v & path] [:static-lookup v (mapv #(if (vector? %) (second %) %) (vec path))])
            :function-var      (fn [func & fields]
-                                 (if (seq fields)
-                                   [:static-lookup func (vec fields)]
-                                   func))
+                                (if (seq fields)
+                                  [:static-lookup func (vec fields)]
+                                  func))
            :unary-expression  (fn [op v] [:unary-op (keyword op) v])
            :binop-plusminus   -transform-binary-op
            :binop-muldiv      -transform-binary-op
@@ -100,7 +101,7 @@
       (let [error (insta/get-failure results)]
         (swap! parse-errors conj {:path    path
                                   :failure error})
-        {:error error})
+-\        {:error error})
       ; If this string parses correctly, return the parsed value
       (let [results (second results)]
         (case (first results)
@@ -136,6 +137,16 @@
    (range)
    (.toList x)))
 
+(defn -prepare-strategy
+  [{:keys [inputs config data states]}]
+  {:inputs inputs
+   :config config
+   :initial-data (assoc data :dawn/state [(:initial states)])
+   :states (->> (:state states)
+                (group-by :id)
+                (map (fn [[k v]] [k (first v)]))
+                (into {}))})
+
 (defn load-toml
   "Take a parser function and source string and convert source string into a tree structure"
   [parser source]
@@ -149,5 +160,8 @@
           (doseq [[index error] (map-indexed vector errors)]
             (println "Error" (inc index) "at" (:path error))
             (println (:failure error)))
-          results)
-        results))))
+          {:errors errors
+           :data results})
+        (-prepare-strategy results)))))
+#_
+(clojure.pprint/pprint (load-toml (make-parser) (slurp "resources/strategy.toml")))

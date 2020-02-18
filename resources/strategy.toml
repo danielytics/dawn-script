@@ -37,21 +37,21 @@ description = "Line tracking strategy with lots of smarts"
 # External inputs
 [inputs]
     #Four upper lines
-    inputs.upper1 = {type = "number"}
-    inputs.upper2 = {type = "number"}
-    inputs.upper3 = {type = "number"}
-    inputs.upper4 = {type = "number"}
+    upper1 = {type = "number"}
+    upper2 = {type = "number"}
+    upper3 = {type = "number"}
+    upper4 = {type = "number"}
     # Four lower lines
-    inputs.lower1 = {type = "number"}
-    inputs.lower2 = {type = "number"}
-    inputs.lower3 = {type = "number"}
-    inputs.lower4 = {type = "number"}
+    lower1 = {type = "number"}
+    lower2 = {type = "number"}
+    lower3 = {type = "number"}
+    lower4 = {type = "number"}
     # TP Lines
-    inputs.long-tp = {type = "number"}
-    inputs.short-tp = {type = "number"}
+    long-tp = {type = "number"}
+    short-tp = {type = "number"}
     # Stop Lines
-    inputs.long-stop = {type = "number"}
-    inputs.short-stop = {type = "number"}
+    long-stop = {type = "number"}
+    short-stop = {type = "number"}
     # Statuses
     [inputs.status]
         type = "bitfield"
