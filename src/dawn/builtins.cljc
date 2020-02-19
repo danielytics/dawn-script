@@ -1,7 +1,14 @@
 (ns dawn.builtins
   (:require [clojure.string :as string]
             [slingshot.slingshot :refer [throw+ try+]]
-            [dawn.types :as types]))
+            [dawn.types :as types]
+            [dawn.libs.core :as core-lib]
+            [dawn.libs.math :as math-lib]
+            [dawn.libs.text :as text-lib]
+            [dawn.libs.list :as list-lib]
+            [dawn.libs.set :as set-lib]
+            [dawn.libs.type :as type-lib]
+            [dawn.libs.trades :as trades-lib]))
 
 ; Data types for parameters:
 ; context -- only one parameter may be of type context and if present, must be first argument
@@ -13,42 +20,9 @@
 ; map/integer, map/float, map/number, map/boolean, map/text -- map with specific value types
 ; any -- parameter can be anything
 
-(defn core-apply
-  [context function arguments]
-  (-> (:libs context)
-      (get-in (types/path function))
-      (:fn)
-      (apply arguments)))
-
-(defn core-doctext
-  [context function]
-  (-> (:libs context)
-      (get-in (types/path function))
-      (:doc)))
-
-(defn math-abs
-  [x]
-  (Math/abs x))
-
 (comment
   #?(:clj nil
      :cljs nil))
-
-(defn trades-max-contracts
-  [context balance price]
-  (let [leverage            (get-in context [:strategy :leverage])
-        fee-rate            (*  0.00075 2)
-        initial-margin-rate (+ 0.01 fee-rate) ; bitmex: 1% + taker entry fee + taker exit fee = 1.15%
-        price-per-contract  (/ 1.0 price)
-        contract-cost       (* (/ 1.0 leverage) price-per-contract)
-        fee-cost            (* initial-margin-rate price-per-contract)
-        cost-per-contract   (+ contract-cost fee-cost)
-        max-contracts       (int (/ balance cost-per-contract))]
-    max-contracts))
-
-(defn trades-price-offset
-  [percent price]
-  (+ price (* (/ percent 100.0) price)))
 
 (def libraries
   ; Core is always merged into context and always un-namespaced. Other libraries are merged in on demand and are namespaced.
@@ -66,12 +40,12 @@
                           :params ["function" "arguments"]}
                     :params [:context :any :list]
                     :return :any
-                    :fn core-apply}
+                    :fn core-lib/apply}
           :doctext {:doc    {:text   "Returns the documentation text for a function"
                              :params ["function"]}
                     :params [:context :any]
                     :return :text
-                    :fn     core-doctext}}
+                    :fn     core-lib/doctext}}
    :Math {:floor       {:doc    {:text   "Round float down to integer (towards negative infinity)"
                                  :params ["value"]}
                         :params [:float]
@@ -96,7 +70,7 @@
                                  :params ["value"]}
                         :params [:number]
                         :return :number
-                        :fn     math-abs}
+                        :fn     math-lib/abs}
           :sign        {:doc    {:text   "Returns 1 for positive numbers, -1 for negative and 0 for zero"
                                  :params ["value"]}
                         :params [:number]
@@ -346,9 +320,9 @@
                                      :params ["balance" "price"]}
                             :params [:float :float]
                             :return :integer
-                            :fn     trades-max-contracts}
+                            :fn     trades-lib/max-contracts}
             :price-offset  {:doc    {:text   "Calculate price at a percentage offset from price"
                                      :params ["percent" "price"]}
                             :params [:float :float]
                             :return :float
-                            :fn     trades-price-offset}}})
+                            :fn     trades-lib/price-offset}}})
