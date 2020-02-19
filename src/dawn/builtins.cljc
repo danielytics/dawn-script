@@ -135,7 +135,7 @@
                                :params ["list" "value"]}
                       :params [:list :any]
                       :return :integer
-                      :fn     nil}
+                      :fn     list-lib/find}
           :filled    {:doc    {:text   "Return a list of n elements filled with value"
                                :params ["n" "value"]}
                       :params [:integer :any]
