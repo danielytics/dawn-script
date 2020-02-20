@@ -7,7 +7,6 @@
             [dawn.libs.text :as text-lib]
             [dawn.libs.list :as list-lib]
             [dawn.libs.set :as set-lib]
-            [dawn.libs.type :as type-lib]
             [dawn.libs.trades :as trades-lib]))
 
 ; Data types for parameters:
@@ -285,37 +284,37 @@
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}
+                       :fn     integer?}
           :is-float   {:doc    {:text   "Return whether or not input is a float"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}
+                       :fn     float?}
           :is-number  {:doc    {:text   "Return whether or not input is a number"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}
+                       :fn     number?}
           :is-boolean {:doc    {:text   "Return whether or not input is a boolean"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}
+                       :fn     boolean?}
           :is-text    {:doc    {:text   "Return whether or not input is text"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}
+                       :fn     string?}
           :is-list    {:doc    {:text   "Return whether or not input is a list"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}
+                       :fn     vector?}
           :is-map     {:doc    {:text   "Return whether or not input is a map"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}}
+                       :fn     map?}}
    :Trades {:max-contracts {:doc    {:text   "Calculate maximum contracts possible with given balance at given price"
                                      :params ["balance" "price"]}
                             :params [:float :float]
