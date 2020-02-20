@@ -79,22 +79,22 @@
                                  :params ["value"]}
                         :params [:number]
                         :return :number
-                        :fn     nil}
+                        :fn     pos?}
           :is-negative {:doc    {:text   "Is the input value negative"
                                  :params ["value"]}
                         :params [:number]
                         :return :number
-                        :fn     nil}
+                        :fn     neg?}
           :is-zero     {:doc    {:text   "Is the input value zero"
                                  :params ["value"]}
                         :params [:number]
                         :return :number
-                        :fn     nil}
+                        :fn     zero?}
           :is-nonzero  {:doc    {:text   "Is the input value non-zero"
                                  :params ["value"]}
                         :params [:number]
                         :return :number
-                        :fn     nil}}
+                        :fn     (complement zero?)}}
    :Text {:upper-case    {:doc    {:text   "Convert input text to all upper-case"
                                    :params ["text"]}
                           :params [:text]
