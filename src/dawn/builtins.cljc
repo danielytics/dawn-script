@@ -239,12 +239,12 @@
                                :params ["list"]}
                       :params [:list/number]
                       :return :number
-                      :fn     nil}
+                      :fn     #(reduce max %)}
           :min       {:doc    {:text   "Return the minimum value in list"
                                :params ["list"]}
                       :params [:list/number]
                       :return :number
-                      :fn     nil}
+                      :fn     #(reduce min %)}
           :is-empty  {:doc    {:text   "Return whether or not list is empty"
                                :params ["list"]}
                       :params [:list]
@@ -254,7 +254,7 @@
                                :params ["list"]}
                       :params [:list]
                       :return :integer
-                      :fn     nil}
+                      :fn     count}
           :reshape   {:doc    {:text   "Return a reshaped version of list, the shape is how many elements each dimension should have"
                                :params ["list" "shape"]}
                       :params [:list :list]
