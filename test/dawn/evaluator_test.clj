@@ -73,8 +73,8 @@
                           [:binary-op :<= [:integer 2] [:integer 1]] false
                           [:binary-op :<= [:integer 2] [:integer 2]] true
                           [:binary-op :<= [:integer 1] [:integer 2]] true
-                          ; in ???
-                          ;[:binary-op :in [:integer 1] [:list-literal 1 2 3]] true
+                          ; in 
+                          [:binary-op :in [:integer 1] [:list-literal [:integer 1] [:integer 2] [:integer 3]]] true
                           ; bitwise
                           [:binary-op :bit-and [:integer 12] [:integer 25]] 8
                           [:binary-op :bit-or [:integer 12] [:integer 25]] 29
@@ -97,8 +97,8 @@
                           [:binary-op :* [:integer 2] [:integer 3]] 6
                           [:binary-op :/ [:integer 6] [:integer 3]] 2                          
                           [:binary-op :mod [:integer 7] [:integer 3]] 1
-                          ; pow ??
-                          ;[:binary-op :pow [:integer 2] [:integer 4]] 16
+                          ; pow 
+                          [:binary-op :pow [:integer 2] [:integer 4]] 16.0
                           ; percent
                           [:binary-op :percent [:integer 10] [:integer 50]] 5
                           [:binary-op :++ [:list-literal [:integer 1]] [:list-literal [:integer 2]]] [1 2]}]

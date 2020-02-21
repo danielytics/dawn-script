@@ -70,7 +70,7 @@
     
     (doseq [source [; Functions cannot be determined dynamically
                     "=> [#foo:]"
-                    "=> [:foo.#bar:]"
+                    "=> [foo.#bar:]"
                     "=> [foo.(var):]"]]
       (testing (str "Invalid source causes parse failure: " source)
         (is (insta/failure? (dawn/parse parser source)))))
