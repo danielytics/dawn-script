@@ -3,12 +3,6 @@
             [dawn.evaluator :as dawn]
             [dawn.types :as types]))
 
-(dawn/evaluate {:data {:line "upper1"
-                       :upper-lines ["upper1" "upper2" "upper3" "upper4"]}} 
-               [:ternary-expression
-                [:binary-op :in [:dynamic-var :line] [:dynamic-var :upper-lines]]
-                [:string "sell"]
-                [:string "buy"]])
 
 (deftest evaluation-test
   ;; Test literals
