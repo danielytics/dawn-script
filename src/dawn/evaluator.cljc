@@ -93,8 +93,8 @@
                    ((get binary-operators value) lhs rhs))
     ; Ternary
       :ternary-expression (evaluate context (if (evaluate context value)
-                                              (first args)
-                                              (second args)))
+                                              (second args)
+                                              (second (next args))))
     ; Function calls
       :call (let [func-obj   (evaluate context value)
                   parameters (map #(evaluate context %) (second args))]

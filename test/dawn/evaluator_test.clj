@@ -3,6 +3,13 @@
             [dawn.evaluator :as dawn]
             [dawn.types :as types]))
 
+(dawn/evaluate {:data {:line "upper1"
+                       :upper-lines ["upper1" "upper2" "upper3" "upper4"]}} 
+               [:ternary-expression
+                [:binary-op :in [:dynamic-var :line] [:dynamic-var :upper-lines]]
+                [:string "sell"]
+                [:string "buy"]])
+
 (deftest evaluation-test
   ;; Test literals
   (doseq [[ast expected] {; Basic types
@@ -105,6 +112,11 @@
     (testing (str "binary expression: " (second ast))
       (is (= expected (dawn/evaluate {} ast)))))
   
+  ; Test ternary expressions
+  (doseq [[ast expected] {[:ternary-expression [:boolean true] [:integer 1] [:integer 2]] 1
+                          [:ternary-expression [:boolean false] [:integer 1] [:integer 2]] 2}]
+    (testing (str "ternary expression: " ast)
+      (is (= expected (dawn/evaluate {} ast)))))
   
   ; Test function calls.
   (let [context {:libs {:core {:add-2 {:params  [:integer]
