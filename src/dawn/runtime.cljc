@@ -26,6 +26,7 @@
     [key (-eval context value)]))
 
 (defn -evaluate-order
+  "Evaluate the when expression and if true, evaluate each field of the order"
   [context order]
   (when (-eval context (:when order))
     (->> (dissoc order :when)

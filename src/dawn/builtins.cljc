@@ -7,7 +7,6 @@
             [dawn.libs.text :as text-lib]
             [dawn.libs.list :as list-lib]
             [dawn.libs.set :as set-lib]
-            [dawn.libs.type :as type-lib]
             [dawn.libs.trades :as trades-lib]))
 
 ; Data types for parameters:
@@ -80,22 +79,22 @@
                                  :params ["value"]}
                         :params [:number]
                         :return :number
-                        :fn     nil}
+                        :fn     pos?}
           :is-negative {:doc    {:text   "Is the input value negative"
                                  :params ["value"]}
                         :params [:number]
                         :return :number
-                        :fn     nil}
+                        :fn     neg?}
           :is-zero     {:doc    {:text   "Is the input value zero"
                                  :params ["value"]}
                         :params [:number]
                         :return :number
-                        :fn     nil}
+                        :fn     zero?}
           :is-nonzero  {:doc    {:text   "Is the input value non-zero"
                                  :params ["value"]}
                         :params [:number]
                         :return :number
-                        :fn     nil}}
+                        :fn     (complement zero?)}}
    :Text {:upper-case    {:doc    {:text   "Convert input text to all upper-case"
                                    :params ["text"]}
                           :params [:text]
@@ -135,7 +134,7 @@
                                :params ["list" "value"]}
                       :params [:list :any]
                       :return :integer
-                      :fn     nil}
+                      :fn     list-lib/find}
           :filled    {:doc    {:text   "Return a list of n elements filled with value"
                                :params ["n" "value"]}
                       :params [:integer :any]
@@ -240,12 +239,12 @@
                                :params ["list"]}
                       :params [:list/number]
                       :return :number
-                      :fn     nil}
+                      :fn     #(reduce max %)}
           :min       {:doc    {:text   "Return the minimum value in list"
                                :params ["list"]}
                       :params [:list/number]
                       :return :number
-                      :fn     nil}
+                      :fn     #(reduce min %)}
           :is-empty  {:doc    {:text   "Return whether or not list is empty"
                                :params ["list"]}
                       :params [:list]
@@ -255,7 +254,7 @@
                                :params ["list"]}
                       :params [:list]
                       :return :integer
-                      :fn     nil}
+                      :fn     count}
           :reshape   {:doc    {:text   "Return a reshaped version of list, the shape is how many elements each dimension should have"
                                :params ["list" "shape"]}
                       :params [:list :list]
@@ -285,37 +284,37 @@
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}
+                       :fn     integer?}
           :is-float   {:doc    {:text   "Return whether or not input is a float"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}
+                       :fn     float?}
           :is-number  {:doc    {:text   "Return whether or not input is a number"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}
+                       :fn     number?}
           :is-boolean {:doc    {:text   "Return whether or not input is a boolean"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}
+                       :fn     boolean?}
           :is-text    {:doc    {:text   "Return whether or not input is text"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}
+                       :fn     string?}
           :is-list    {:doc    {:text   "Return whether or not input is a list"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}
+                       :fn     vector?}
           :is-map     {:doc    {:text   "Return whether or not input is a map"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     nil}}
+                       :fn     map?}}
    :Trades {:max-contracts {:doc    {:text   "Calculate maximum contracts possible with given balance at given price"
                                      :params ["balance" "price"]}
                             :params [:float :float]
