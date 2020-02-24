@@ -1,6 +1,7 @@
 (ns dawn.builtins
   (:require [clojure.string :as string]
             [slingshot.slingshot :refer [throw+ try+]]
+            [clojure.set :as sets]
             [dawn.types :as types]
             [dawn.libs.core :as core-lib]
             [dawn.libs.math :as math-lib]
@@ -265,21 +266,21 @@
                       :params [:list]
                       :return :list
                       :fn     nil}}
-   :Set  {:union        {:doc    {:text   "Return the set union of two input lists"
+   :Set  {:union        {:doc    {:text   "Return the set union of two input lists (elements from both 'a' and 'b' without duplicates)"
                                   :params ["a" "b"]}
                          :params [:list :list]
                          :return :list
-                         :fn     nil}
-          :intersection {:doc    {:text   "Return the set intersection of two input lists"
+                         :fn     #(vec (sets/union (set %1) %2))}
+          :intersection {:doc    {:text   "Return the elements that are in both 'a' and 'b'"
                                   :params ["a" "b"]}
                          :params [:list :list]
                          :return :list
-                         :fn     nil}
-          :difference   {:doc    {:text   "Return the set difference of two input lists"
+                         :fn     #(vec (sets/intersection (set %1) (set %2)))}
+          :difference   {:doc    {:text   "Return the elements in 'a' that are not in 'b'"
                                   :params ["a" "b"]}
                          :params [:list :list]
                          :return :list
-                         :fn     nil}}
+                         :fn     #(vec (sets/difference (set %1) %2))}}
    :Type {:is-integer {:doc    {:text   "Return whether or not input is an integer"
                                 :params ["input"]}
                        :params [:any]
