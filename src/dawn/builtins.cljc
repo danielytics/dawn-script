@@ -134,7 +134,7 @@
                                :params ["list" "value"]}
                       :params [:list :any]
                       :return :integer
-                      :fn     list-lib/find}
+                      :fn     #(.indexOf %1 %2)}
           :filled    {:doc    {:text   "Return a list of n elements filled with value"
                                :params ["n" "value"]}
                       :params [:integer :any]
@@ -144,47 +144,47 @@
                                :params ["list" "value"]}
                       :params [:list :any]
                       :return :list
-                      :fn     nil}
+                      :fn     #(conj %1 %2)}
           :concat    {:doc    {:text   "Concatenate two lists"
                                :params ["a" "b"]}
                       :params [:list :list]
                       :return :list
-                      :fn     nil}
+                      :fn     #(into %1 %2)}
           :take      {:doc    {:text   "Return the first n elements of list"
                                :params ["list" "n"]}
                       :params [:list :integer]
                       :return :list
-                      :fn     nil}
+                      :fn     #(vec (take %2 %1))}
           :drop      {:doc    {:text   "Return all but the first n elements of list"
                                :params ["list" "n"]}
                       :params [:list :integer]
                       :return :list
-                      :fn     nil}
+                      :fn     #(vec (drop %2 %1))}
           :first     {:doc    {:text   "Returun the first element of list"
                                :params ["list"]}
                       :params [:list]
                       :return :any
-                      :fn     nil}
+                      :fn     first}
           :last      {:doc    {:text   "Return the last element of list"
                                :params ["list"]}
                       :params [:list]
                       :return :any
-                      :fn     nil}
+                      :fn     last}
           :sum       {:doc    {:text   "Return the sum of all elements in list"
                                :params ["list"]}
                       :params [:list/number]
                       :return :number
-                      :fn     nil}
+                      :fn     #(reduce + %1)}
           :sort      {:doc    {:text   "Return the list with its elements sorted"
                                :params ["list"]}
                       :params [:list]
                       :return :list
-                      :fn     nil}
+                      :fn     sort}
           :reverse   {:doc    {:text   "Return the list with its elements reversed"
                                :params ["list"]}
                       :params [:list]
                       :return :list
-                      :fn     nil}
+                      :fn     reverse}
           :set       {:doc    {:text   "Return the list with element n set to value"
                                :params ["list" "n" "values"]}
                       :params [:list :integer :value]
@@ -214,27 +214,27 @@
                                :params ["list"]}
                       :params [:list/number]
                       :return :number
-                      :fn     nil}
+                      :fn     #(/ (reduce + %) (count %))}
           :take-last {:doc    {:text   "Return a list containing the last n items of list"
                                :params ["list" "n"]}
                       :params [:list :integer]
                       :return :list
-                      :fn     nil}
+                      :fn     #(vec (take-last %2 %1))}
           :drop-last {:doc    {:text   "Return a list containing all but the last n items of list"
                                :params ["list" "n"]}
                       :params [:list :integer]
                       :return :list
-                      :fn     nil}
+                      :fn     #(vec (drop-last %2 %1))}
           :range     {:doc    {:text   "Return a list containing the integers start...(end - 1)"
                                :params ["start" "end"]}
                       :params [:integer :integer]
                       :return :list/integer
-                      :fn     nil}
+                      :fn     #(vec (range %1 %2))}
           :indexed   {:doc    {:text   "Return an indexed list of [index, element] pairs for each element in list"
                                :params ["list"]}
                       :params [:list]
                       :return :list
-                      :fn     nil}
+                      :fn     #(vec (map-indexed vector %))}
           :max       {:doc    {:text   "Return the maximum value in list"
                                :params ["list"]}
                       :params [:list/number]
@@ -249,7 +249,7 @@
                                :params ["list"]}
                       :params [:list]
                       :return :boolean
-                      :fn     nil}
+                      :fn     empty?}
           :count     {:doc    {:text   "Rerurn a count of the number of elements in list"
                                :params ["list"]}
                       :params [:list]
