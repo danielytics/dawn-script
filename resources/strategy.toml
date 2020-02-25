@@ -83,7 +83,7 @@ description = "Line tracking strategy with lots of smarts"
             type = "limit"
             side = "=> #line in #upper-lines ? 'sell' : 'buy'"
             # List.find will return a value in range 0..7, by taking modulus 4, any value in range 4..7 will be changed to 0..3
-            contracts = "=> (config.order-sizes.([List.find: #upper-lines + #lower-lines, #line] mod 4))% of [Trades.max-contracts: account.balance, inputs.#line]"
+            contracts = "=> (config.order-sizes.([List.find: #upper-lines ++ #lower-lines, #line] mod 4))% of [Trades.max-contracts: account.balance, inputs.#line]"
             price = "=> inputs.#line"
             instructions = ["post-only"]
             # Only when enabled in the status input bitfield

@@ -1,13 +1,16 @@
 (ns dawn.parser-test
   (:require [clojure.test :refer :all]
             [dawn.parser :as dawn]
+            [dawn.types :as types]
             [instaparse.core :as insta]))
 
 
 (deftest analysis-test
   (testing "capture of variables in expressions"
     (is (= {:static  #{:foo :abc}
-            :dynamic #{:a :test}}
+            :dynamic #{:a :test}
+            :functions {:foo {:bar (types/fn-ref :foo :bar)}
+                        :abc (types/fn-ref :Core :abc)}}
            (dawn/-capture-variables
             [:call [:static-lookup [:static-var :foo] [:bar]]
              [[:binary-op :+ [:integer 1] [:static-lookup [:map-literal {:x [:dynamic-var :test]}] [:x]]]

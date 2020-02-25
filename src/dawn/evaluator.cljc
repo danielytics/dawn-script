@@ -7,16 +7,19 @@
   [context func-obj parameters]
   (when (types/fn-ref? func-obj)
     (when-let [func (get-in (:libs context) (types/path func-obj))]
-      (if (= (count parameters)
-             (count (:params func)))
-        (apply (:fn func) parameters)
-        (throw+ {:error ::call
-                 :type :bad-arguments
-                 :function (dissoc func :fn)
-                 :parameters parameters
-                 :lib (types/lib func-obj)
-                 :message (str "Invalid number of arguments. Expected " (count (:params func)) " got " (count parameters))})))))
-
+      (let [expected-params (:params func)
+            with-context? (= (first expected-params) :context)]
+        (if (= (count parameters)
+               ((if with-context? dec identity) (count expected-params)))
+          (if with-context?
+            (apply (:fn func) context parameters)
+            (apply (:fn func) parameters))
+          (throw+ {:error ::call
+                   :type :bad-arguments
+                   :function (dissoc func :fn)
+                   :parameters parameters
+                   :lib (types/lib func-obj)
+                   :message (str "Invalid number of arguments. Expected " (count (:params func)) " got " (count parameters))}))))))
 
 (defn in?
   "true if coll contains elem"
@@ -65,7 +68,7 @@
 
 (defn evaluate
   [context [node-type & [value :as args]]]
-  (try
+  (try+
     (case node-type
     ; Literals
       :integer value
@@ -99,8 +102,10 @@
       :call (let [func-obj   (evaluate context value)
                   parameters (map #(evaluate context %) (second args))]
               (-call-function context func-obj parameters)))
-(catch Exception _
-  (println "Evaluation error in:" node-type args))))
+(catch Exception e
+  (println "Evaluation error in:" node-type args)
+  (println "Exception:" e)
+  (println))))
 
 
 #_

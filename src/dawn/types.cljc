@@ -13,10 +13,16 @@
   (vars [_] vars)
   (ast [_] ast))
 
-(deftype FunctionVar [path]
+(deftype FunctionVar [fn-path]
   FuncRef
-  (path [_] path)
-  (lib [_] (first path)))
+  (path [_] fn-path)
+  (lib [_] (first fn-path))
+  ; Make equality work for tests
+  Object
+  (toString [_] (str "[FunctionVar: " fn-path "]"))
+  (hashCode [fn-path] (.hashCode fn-path))
+  (equals [_ other]
+    (= fn-path (path other))))
 
 (defn formula
   [{:keys [vars ast]}]
