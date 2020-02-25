@@ -317,7 +317,7 @@
                        :fn     map?}}
    :Trades {:max-contracts {:doc    {:text   "Calculate maximum contracts possible with given balance at given price"
                                      :params ["balance" "price"]}
-                            :params [:float :float]
+                            :params [:context :float :float]
                             :return :integer
                             :fn     trades-lib/max-contracts}
             :price-offset  {:doc    {:text   "Calculate price at a percentage offset from price"

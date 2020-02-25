@@ -65,14 +65,12 @@
        ; Group by 'type', returning a map where the keys are the type and value are a list of nodes
        (group-by first)))
 
-(defn -capture-variables
-  "Search the AST for variable references and return them in sets (separating static and dynamic variables)"
-  [ast]
-  (let [{:keys [static-var dynamic-var]} (-find-variables ast)]
-    ; Take only the identifiers and convert each list into a set
-    {:static  (set (map second static-var))
-     :dynamic (set (map second dynamic-var))}))
-
+(defn -get-identifiers
+  [[node-type & identifiers]]
+  (case node-type
+    :static-var (vec identifiers)
+    :static-lookup (into (vec (next (first identifiers)))
+                         (second identifiers))))
 
 (defn -find-functions
   [ast]
@@ -82,12 +80,30 @@
                  identity)
        (filter vector?)
        (filter #(= (first %) :call))
-       (map (comp next second))
-       (map #(into (vec (next (first %))) (second %)))
+       (map (comp -get-identifiers second))
        (set)))
 
-(parse (make-parser) "=> a + [List.append: b + c, 100 * [Math.abs: 12]] - 1")
-(-find-functions (parse (make-parser) "=> a + [List.append: b + c, 100 * [Math.abs: 12]] - 1"))
+(defn -make-functions-vars
+  [functions]
+  (reduce
+   (fn [funcs [lib key]]
+     (let [[path func] (if (nil? key)
+                         [[lib] (types/fn-ref :Core lib)]
+                         [[lib key] (types/fn-ref lib key)])]
+       (assoc-in funcs path func)))
+   {}
+   functions))
+
+(defn -capture-variables
+  "Search the AST for variable references and return them in sets (separating static and dynamic variables)"
+  [ast]
+  (let [{:keys [static-var dynamic-var]} (-find-variables ast)
+        functions (-find-functions ast)]
+    ; Take only the identifiers and convert each list into a set
+    {:static    (set (map second static-var))
+     :dynamic   (set (map second dynamic-var))
+     :functions (-make-functions-vars functions)}))
+
 
 (declare ^:dynamic parse-errors)
 

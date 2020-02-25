@@ -53,11 +53,13 @@
   (runtime/execute strategy instance))
 
 (let [strategy (load-string (slurp "resources/strategy.toml"))
-      instance {:inputs (into
-                         {:status (into {} (map (fn [k] [(keyword k) true]) (get-in strategy [:inputs :status :fields])))}
-                         (map (fn [k] [k 0]) (keys (dissoc (:inputs strategy) :status))))
-                :config {:order-sizes          [10 10 10 10]
-                         :tp-trail-threshold   100
-                         :trailing-stop-offset 10}
-                :data   {}}]
+      instance {:inputs   (into
+                           {:status (into {} (map (fn [k] [(keyword k) true]) (get-in strategy [:inputs :status :fields])))}
+                           (map (fn [k] [k 10]) (keys (dissoc (:inputs strategy) :status))))
+                :account  {:balance 1000}
+                :strategy {:leverage 1}
+                :config   {:order-sizes          [10 10 10 10]
+                           :tp-trail-threshold   100
+                           :trailing-stop-offset 10}
+                :data     {}}]
   (execute strategy instance))

@@ -7,7 +7,9 @@
 (defn -eval
   [context value]
   (if (types/formula? value)
-    (evaluator/evaluate context (types/ast value))
+    (evaluator/evaluate
+     (update context :static merge (:functions (types/vars value)))
+     (types/ast value))
     value))
 
 (defn -generate-binding-combos
@@ -61,16 +63,18 @@
       {:effect/name :edit-order
        :id (get-in context [:all-orders (:tag order) :id])
        :price (:price order)
-       :contracts (:contracts order)})))
+       :contracts (type (:contracts order))})))
 
 (defn execute
-  [{:keys [initial-data states]} {:keys [inputs config data]}]
+  [{:keys [initial-data states]} {:keys [inputs config account strategy data]}]
   (let [data          (if (seq data)
                         data
                         initial-data)
         current-state (peek (:dawn/state data))
-        context       {:static        {:inputs inputs
-                                       :config config}
+        context       {:static        {:inputs  inputs
+                                       :config  config
+                                       :account account}
+                       :strategy      strategy
                        :libs          builtins/libraries
                        :orders        (:dawn/orders data)
                        :current-state current-state
