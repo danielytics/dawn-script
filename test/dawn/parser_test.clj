@@ -54,6 +54,7 @@
              ; Expressions
              "=> 1 + 2"                       [:binary-op :+ [:integer 1] [:integer 2]]
              "=> 1 - 2"                       [:binary-op :- [:integer 1] [:integer 2]]
+             "=> 1 > 2"                       [:binary-op :> [:integer 1] [:integer 2]]
              "=> 25% of 100"                  [:binary-op :percent [:integer 25] [:integer 100]]
              "=> 1 + 2 * 3"                   [:binary-op :+ [:integer 1] [:binary-op :* [:integer 2] [:integer 3]]]
              "=> 1 * 2 + 3"                   [:binary-op :+ [:binary-op :* [:integer 1] [:integer 2]] [:integer 3]]

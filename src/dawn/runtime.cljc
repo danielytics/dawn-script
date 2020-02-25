@@ -54,39 +54,52 @@
 
 (defn -order->effect
   [context order]
-  (let [order-status (get-in context [:all-orders (:tag order) :status])]
+  (let [order-status (get-in context [:all-orders (:tag order) :status])
+        order (update order :contracts (fnil long 0))]
     (cond
       (not= order-status "open")
       (assoc order :effect/name :place-order)
       
       (= order-status "open")
       {:effect/name :edit-order
-       :id (get-in context [:all-orders (:tag order) :id])
-       :price (:price order)
-       :contracts (type (:contracts order))})))
+       :tag         (:tag order)
+       :price       (:price order)
+       :contracts   (:contracts order)})))
+
+(defn -check-trigger-fn
+  [context]
+  (fn [{:keys [condition] :as trigger}]
+    (when (-eval context condition)
+      (dissoc trigger :condition))))
 
 (defn execute
-  [{:keys [initial-data states]} {:keys [inputs config account strategy data]}]
+  [{:keys [initial-data states]} {:keys [inputs config account exchange data orders]}]
   (let [data          (if (seq data)
                         data
                         initial-data)
         current-state (peek (:dawn/state data))
-        context       {:static        {:inputs  inputs
-                                       :config  config
-                                       :account account}
-                       :strategy      strategy
+        context       {:static        {:inputs   inputs
+                                       :config   config
+                                       :account  account
+                                       :exchange exchange}
                        :libs          builtins/libraries
                        :orders        (:dawn/orders data)
                        :current-state current-state
                        :data          (dissoc data :dawn/state :dawn/orders)}
-        state         (get states current-state)
-        orders        (-evaluate-orders context (:orders state))
-        triggers      (:triggers state)
-        actions       (for [order orders]
-                        (-order->effect context order))]
-    (println "Current state:" current-state)
-    (println "Orders: " orders)
-    (println "Triggers: " triggers)
-    (println "Actions:")
-    (clojure.pprint/pprint actions)))
+        state         (get states current-state)]
+    (if-let [trigger-action (some (-check-trigger-fn context) (:triggers state))]
+      (do 
+        (println "Need to perform trigger action:" trigger-action)
+        {:data (-> data
+                   (merge (:data trigger-action))
+                   (assoc :dawn/state (get trigger-action :to-state current-state)))
+         :actions [(comment "Need to retract orders here!")]})
+      (let [orders  (-evaluate-orders context (:orders state))
+            actions (for [order orders]
+                      (-order->effect context order))]
+        (println "Current state:" current-state)
+        (println "Orders: " orders)
+        (println "Data:" (:data context))
+        (println "Actions:")
+        (clojure.pprint/pprint actions)))))
 

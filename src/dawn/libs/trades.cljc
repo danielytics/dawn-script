@@ -3,7 +3,8 @@
 
 (defn max-contracts
   [context balance price]
-  (let [leverage            (get-in context [:strategy :leverage])
+  (let [leverage            (get-in context [:static :account :leverage])
+        _ (println "leverage:" leverage)
         fee-rate            (*  0.00075 2)
         initial-margin-rate (+ 0.01 fee-rate) ; bitmex: 1% + taker entry fee + taker exit fee = 1.15%
         price-per-contract  (/ 1.0 price)

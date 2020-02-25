@@ -48,6 +48,7 @@
            :binop-logical-or  -transform-binary-op
            :binop-percent     -transform-binary-op
            :binop-pow         -transform-binary-op
+           :binop-relational  -transform-binary-op
            :call-expression   (fn [func-name & args] [:call func-name (vec args) {}])}))))
 
 (defn -find-variables

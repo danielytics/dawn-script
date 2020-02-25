@@ -56,10 +56,20 @@
       instance {:inputs   (into
                            {:status (into {} (map (fn [k] [(keyword k) true]) (get-in strategy [:inputs :status :fields])))}
                            (map (fn [k] [k 10]) (keys (dissoc (:inputs strategy) :status))))
-                :account  {:balance 1000}
-                :strategy {:leverage 1}
+                :account  {:balance  1000
+                           :leverage 1}
                 :config   {:order-sizes          [10 10 10 10]
                            :tp-trail-threshold   100
                            :trailing-stop-offset 10}
+                :exchange {:candle    {:open   100
+                                       :high   110
+                                       :low    90
+                                       :close  105
+                                       :volume 1000}
+                           :orderbook {:price  {:ask 110
+                                                :bid 100}
+                                       :volume {:ask 1000
+                                                :bid 100}}}
+                :orders   {}
                 :data     {}}]
   (execute strategy instance))

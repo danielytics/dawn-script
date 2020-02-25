@@ -52,15 +52,14 @@
              (dawn/-order->effect context order)))))
   
   (testing "edit existing order"
-    (let [context {:all-orders {"foo" {:status "open"
-                                       :id     "abc"}}}
+    (let [context {:all-orders {"foo" {:status "open"}}}
           order   {:type      :limit
                    :tag       "foo"
                    :price     100
                    :contracts 10
                    :side      :buy}]
       (is (= {:effect/name :edit-order
-              :id          "abc"
+              :tag         "foo"
               :price       100
               :contracts   10}
              (dawn/-order->effect context order))))))
