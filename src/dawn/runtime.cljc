@@ -117,7 +117,8 @@
 ; TODO: nested state
 (defn -run-execution-loop
   [initial-state states context]
-    (loop [context context]
+    (loop [visited-states #{initial-state}
+          context         context]
       (let [current-state                  (:current-state context)
             results                        (-> context
                                                (-add-message :info (str "Executing state: " current-state))
@@ -130,9 +131,10 @@
                                                (update :messages into (:messages results))
                                                (update :actions into (:actions results)))]
         (if (not= previous-state current-state)
-          (if (= initial-state current-state)
-            (-add-message context :warning (str "Loop detected: " current-state " -> ... -> " previous-state " -> " current-state))
-            (recur (assoc context :new-state? true)))
+          (if (contains? visited-states current-state)
+            (-add-message context :warning (str "Loop detected: " initial-state " -> ... -> " previous-state " -> " current-state))
+            (recur (conj visited-states current-state)
+                   (assoc context :new-state? true)))
           context))))
 
 (defn execute
