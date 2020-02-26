@@ -61,8 +61,8 @@ description = "Line tracking strategy with lots of smarts"
 [data]
     upper-lines = ["upper1", "upper2", "upper3", "upper4"]
     lower-lines = ["lower1", "lower2", "lower3", "lower4"]
-    a = 30
-    b = 20
+    message = ""
+    a = 10
 
 # Strategy logic
 [states]
@@ -79,9 +79,10 @@ description = "Line tracking strategy with lots of smarts"
 
         # This is just for testing, not actulaly part of this strategy
         [[states.state.triggers]]
-            condition = "=> #a > #b"
+            when = "=> #a > inputs.x"
             to-state = "another-state"
-            data.b = 10
+            note.text = "Changing State"
+            data.message = "=> #message ++ 'Hello!'"
 
         # Sync eight orders with the four upper and four lower line values
         [[states.state.orders]]
@@ -100,6 +101,15 @@ description = "Line tracking strategy with lots of smarts"
             [states.state.orders.on.fill]
                 to-state = "in-position"
     
+    [[states.state]]
+        id = "another-state"
+        [[states.state.triggers]]
+            when = "=> true"
+            to-state = "not-in-position"
+            note.category = "error"
+            note.text = "Changing back"
+            #data.a = 0
+
     ##########
     # State: in-position
     #

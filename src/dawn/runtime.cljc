@@ -68,38 +68,91 @@
 
 (defn -check-trigger-fn
   [context]
-  (fn [{:keys [condition] :as trigger}]
+  (fn [{condition :when :as trigger}]
     (when (-eval context condition)
       (dissoc trigger :condition))))
 
-(defn execute
-  [{:keys [initial-data states]} {:keys [inputs config account exchange data orders]}]
-  (let [data          (if (seq data)
-                        data
-                        initial-data)
-        current-state (peek (:dawn/state data))
-        context       {:static        {:inputs   inputs
-                                       :config   config
-                                       :account  account
-                                       :exchange exchange}
-                       :libs          builtins/libraries
-                       :orders        (:dawn/orders data)
-                       :current-state current-state
-                       :data          (dissoc data :dawn/state :dawn/orders)}
-        state         (get states current-state)]
-    (if-let [trigger-action (some (-check-trigger-fn context) (:triggers state))]
-      (do 
-        (println "Need to perform trigger action:" trigger-action)
-        {:data (-> data
-                   (merge (:data trigger-action))
-                   (assoc :dawn/state (get trigger-action :to-state current-state)))
-         :actions [(comment "Need to retract orders here!")]})
-      (let [orders  (-evaluate-orders context (:orders state))
-            actions (for [order orders]
-                      (-order->effect context order))]
-        (println "Current state:" current-state)
-        (println "Orders: " orders)
-        (println "Data:" (:data context))
-        (println "Actions:")
-        (clojure.pprint/pprint actions)))))
+(defn -add-message
+  [context category message]
+  (update context :messages conj {:category category
+                                  :time     nil
+                                  :text     message}))
 
+(defn -process-trigger-action
+  [context trigger-action]
+  (println "Need to perform trigger action:" trigger-action)
+  (let [new-state (:to-state trigger-action)]
+  ; Need to retract orders here by creating actions
+    (cond-> {:context  (assoc context :current-state (or new-state (:current-state context)))
+             :messages []
+             :data     (into (:data context)
+                             (map (fn [[k v]] [k (-eval context v)]) (:data trigger-action)))}
+      (seq new-state) (-add-message :info (str "Transitioning state to: " new-state))
+      (:note trigger-action) (-add-message (get-in trigger-action [:note :category] :note)
+                                           (get-in trigger-action [:note :text])))))
+
+(defn -process-orders
+  [context orders]
+  (let [orders  (-evaluate-orders context orders)
+        actions (for [order orders]
+                  (-order->effect context order))]
+    (println "Current state:" (:current-state context))
+    (println "Orders: " orders)
+    (println "Data:" (:data context))
+    (println "Actions:")
+    (clojure.pprint/pprint actions)
+    {:context context
+     :data    (:data context)
+     :actions actions}))
+
+(defn -execute
+  [context state]
+  (let [context (if (:new-state? context)
+                  (update context :data merge (:data state))
+                  context)]
+    (if-let [trigger-action (some (-check-trigger-fn context) (:triggers state))]
+      (-process-trigger-action context trigger-action)
+      (-process-orders context (:orders state)))))
+
+; TODO: nested state
+(defn -run-execution-loop
+  [initial-state states context]
+    (loop [context context]
+      (let [current-state                  (:current-state context)
+            results                        (-> context
+                                               (-add-message :info (str "Executing state: " current-state))
+                                               (-execute (get states current-state)))
+            previous-state                 current-state
+            context                        (:context results)
+            current-state                  (:current-state context)
+            context                        (-> context
+                                               (assoc :data (assoc (:data results) :dawn/state [current-state]))
+                                               (update :messages into (:messages results))
+                                               (update :actions into (:actions results)))]
+        (if (not= previous-state current-state)
+          (if (= initial-state current-state)
+            (-add-message context :warning (str "Loop detected: " current-state " -> ... -> " previous-state " -> " current-state))
+            (recur (assoc context :new-state? true)))
+          context))))
+
+(defn execute
+    [{:keys [initial-data states]} {:keys [inputs config account exchange data orders]}]
+  (let [previous-state (peek (:dawn/state data))
+        data           (if previous-state data initial-data)
+        current-state  (peek (:dawn/state data))
+        initial-state  (or previous-state current-state)
+        context        {:static        {:inputs   inputs
+                                        :config   config
+                                        :account  account
+                                        :exchange exchange}
+                        :libs          builtins/libraries
+                        :orders        orders
+                        :messages      []
+                        :actions       []
+                        :current-state current-state
+                        :new-state?    (not= previous-state current-state)
+                        :data          (dissoc data :dawn/state)}
+        results        (-run-execution-loop initial-state states context)]
+    {:actions (:actions results)
+     :messages (:messages results)
+     :data (:data results)}))

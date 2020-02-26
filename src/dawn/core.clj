@@ -54,7 +54,8 @@
 
 (let [strategy (load-string (slurp "resources/strategy.toml"))
       instance {:inputs   (into
-                           {:status (into {} (map (fn [k] [(keyword k) true]) (get-in strategy [:inputs :status :fields])))}
+                           {:x 5
+                            :status (into {} (map (fn [k] [(keyword k) true]) (get-in strategy [:inputs :status :fields])))}
                            (map (fn [k] [k 10]) (keys (dissoc (:inputs strategy) :status))))
                 :account  {:balance  1000
                            :leverage 1}
@@ -72,4 +73,18 @@
                                                 :bid 100}}}
                 :orders   {}
                 :data     {}}]
-  (execute strategy instance))
+  (loop [instance instance
+         counter 5]
+    (println)
+    (println "Executing...")
+    (let [{:keys [actions messages data]} (execute strategy instance)]
+      (println "Actions:")
+      (clojure.pprint/pprint actions)
+      (println "Messages:")
+      (clojure.pprint/pprint messages)
+      (if (pos? counter)
+        (recur (assoc instance :data data) (dec counter))
+        (do
+          (println)
+          (println "Final Data:")
+          (clojure.pprint/pprint data))))))

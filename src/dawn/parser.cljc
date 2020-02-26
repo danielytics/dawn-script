@@ -181,5 +181,3 @@
           {:errors errors
            :data results})
         (-prepare-strategy results)))))
-#_
-(clojure.pprint/pprint (load-toml (make-parser) (slurp "resources/strategy.toml")))
