@@ -37,8 +37,9 @@ binop-bitshift          = binexp-bitshift ws ('bit-shl' | 'bit-shr') ws binexp-p
 binop-plusminus         = binexp-plusminus ws ('+' | '-') ws binexp-percent
 binop-percent           = binexp-percent percent ws <'of'> ws binexp-muldiv
 binop-muldiv            = binexp-muldiv ws ('*' | '/' | 'mod') ws unexp
-binop-pow               = binexp-pow ws '^' ws binexp-terminal
+binop-pow               = binexp-pow ws pow ws binexp-terminal
 percent                 = <'%'>
+pow                     = <'^'>
 
 <subexpression>         = <'('> ws? expression ws? <')'>
 unary-expression        = ('-' ws? (subexpression | call-expression)) | (('not' | 'bit-not') ws (subexpression | call-expression | variable | literal))

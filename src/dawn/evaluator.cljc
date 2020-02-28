@@ -44,6 +44,7 @@
    :+ + :- - :* * :/ /
    :percent #(* (/ %1 100) %2)
    :mod mod
+   :pow #(Math/pow %1 %2)
    ; Boolean
    :and #(and %1 %2)
    :or #(or %1 %2)
@@ -91,8 +92,11 @@
                   :- (- (evaluate context (second args)))
                   :bit-not (bit-not (evaluate context (second args))))
     ; Binary operators
-      :binary-op (let [lhs (evaluate context (second args))
+      :binary-op (let [_ (println (second args))
+                       lhs (evaluate context (second args))
+                       _ (println (second (next args)))
                        rhs (evaluate context (second (next args)))]
+                   (println lhs rhs)
                    ((get binary-operators value) lhs rhs))
     ; Ternary
       :ternary-expression (evaluate context (if (evaluate context value)
@@ -108,11 +112,13 @@
   (println))))
 
 
+(clojure.pprint/pprint  (evaluate {} [:binary-op :pow [:binary-op :+ [:integer 2] [:integer 3]] [:integer 4]])) 
+
 #_
 (try+ ; TODO: This error reporting should be used somewhere where it can be reported to the user
   (-call-function {:libs {:foo {:bar {:name "bar"
                                       :fn (fn [a b] (* a b))
-                                      :params [:a :b]}}}} (fn-ref :foo :bar) [])
+                                      :params [:a :b]}}}} (types/fn-ref :foo :bar) [])
   (catch [:error ::call :type :bad-arguments] {:keys [message function lib parameters]}
     (letfn [(fn->str [params] (str "[" (name lib) "." (:name function) ": " (string/join ", " params) "]"))]
       (println "Signature:" (fn->str (mapv name (:params function))))
