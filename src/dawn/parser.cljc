@@ -127,14 +127,17 @@
           :raw-text (second results)
           ; Code strings arereturned as a data structure containing the variables accessed and the parsed abstract syntax tree
           (types/formula
-           {:vars (-capture-variables results)
+           {:path path
+            :source x
+            :vars (-capture-variables results)
             :ast  results}))))))
 
 (defmethod to-clj org.tomlj.Parser$1
  ;; Root of a TOML data-structure, acts like a map
   [x _ parser]
   (->> (.toMap x)
-       (map (fn [[k v]] [(keyword k) (to-clj v [] parser)]))
+       (map (fn [[k v]] (let [k (keyword k)]
+                          [k (to-clj v [k] parser)])))
        (into {})))
 
 (defmethod to-clj org.tomlj.MutableTomlTable
@@ -160,10 +163,11 @@
   {:inputs inputs
    :config config
    :initial-data (assoc data :dawn/state [(:initial states)])
-   :states (->> (:state states)
-                (group-by :id)
-                (map (fn [[k v]] [k (first v)]))
-                (into {}))})
+   :states states
+   :states-by-id (->> (:state states)
+                      (group-by :id)
+                      (map (fn [[k v]] [k (first v)]))
+                      (into {}))})
 
 (defn load-toml
   "Take a parser function and source string and convert source string into a tree structure"

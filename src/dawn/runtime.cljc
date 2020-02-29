@@ -7,9 +7,14 @@
 (defn -eval
   [context value]
   (if (types/formula? value)
-    (evaluator/evaluate
-     (update context :static merge (:functions (types/vars value)))
-     (types/ast value))
+    (try+
+      (evaluator/evaluate
+       (update context :static merge (:functions (types/vars value)))
+       (types/ast value))
+      (catch Object error
+       (throw+ (assoc error
+                      :object-path (types/keys value)
+                      :source (types/source value)))))
     value))
 
 (defn -generate-binding-combos
@@ -74,22 +79,25 @@
 
 (defn -add-message
   [context category message]
-  (update context :messages conj {:category category
-                                  :time     nil
-                                  :text     message}))
+  (let [category-kw (keyword category)]
+    (if (contains? #{:warning :error :info :note :order} category-kw)
+      (update context :messages conj {:category category-kw
+                                      :time     nil
+                                      :text     message})
+      (-add-message context :warning (str "Tried to add note with invalid category '" category "': " message)))))
 
 (defn -process-trigger-action
   [context trigger-action]
-  (println "Need to perform trigger action:" trigger-action)
-  (let [new-state (:to-state trigger-action)]
+  (let [new-state (-eval context (:to-state trigger-action))]
   ; Need to retract orders here by creating actions
     (cond-> {:context  (assoc context :current-state (or new-state (:current-state context)))
              :messages []
-             :data     (into (:data context)
-                             (map (fn [[k v]] [k (-eval context v)]) (:data trigger-action)))}
+             :data     (->> (:data trigger-action)
+                            (map (fn [[k v]] [k (-eval context v)]))
+                            (into (:data context)))}
       (seq new-state) (-add-message :info (str "Transitioning state to: " new-state))
       (:note trigger-action) (-add-message (get-in trigger-action [:note :category] :note)
-                                           (get-in trigger-action [:note :text])))))
+                                           (-eval context (get-in trigger-action [:note :text]))))))
 
 (defn -process-orders
   [context orders]
@@ -108,37 +116,42 @@
 (defn -execute
   [context state]
   (let [context (if (:new-state? context)
-                  (update context :data merge (:data state))
+                  (cond-> (->> (:data state)
+                               (map (fn [[k v]] [k (-eval context v)]))
+                               (into {})
+                               (update context :data merge))
+                      (seq (:note state)) (-add-message (get-in state [:note :category] :note)
+                                                        (-eval context (get-in state [:note :text]))))
                   context)]
-    (if-let [trigger-action (some (-check-trigger-fn context) (:triggers state))]
+    (if-let [trigger-action (some (-check-trigger-fn context) (:trigger state))]
       (-process-trigger-action context trigger-action)
       (-process-orders context (:orders state)))))
 
 ; TODO: nested state
 (defn -run-execution-loop
   [initial-state states context]
-    (loop [visited-states #{initial-state}
+  (loop [visited-states #{initial-state}
           context         context]
-      (let [current-state                  (:current-state context)
-            results                        (-> context
-                                               (-add-message :info (str "Executing state: " current-state))
-                                               (-execute (get states current-state)))
-            previous-state                 current-state
-            context                        (:context results)
-            current-state                  (:current-state context)
-            context                        (-> context
-                                               (assoc :data (assoc (:data results) :dawn/state [current-state]))
-                                               (update :messages into (:messages results))
-                                               (update :actions into (:actions results)))]
-        (if (not= previous-state current-state)
-          (if (contains? visited-states current-state)
-            (-add-message context :warning (str "Loop detected: " initial-state " -> ... -> " previous-state " -> " current-state))
-            (recur (conj visited-states current-state)
-                   (assoc context :new-state? true)))
-          context))))
+    (let [current-state                  (:current-state context)
+          results                        (-> context
+                                             (-add-message :info (str "Executing state: " current-state))
+                                             (-execute (get states current-state)))
+          previous-state                 current-state
+          context                        (:context results)
+          current-state                  (:current-state context)
+          context                        (-> context
+                                             (assoc :data (assoc (:data results) :dawn/state [current-state]))
+                                             (update :messages into (:messages results))
+                                             (update :actions into (:actions results)))]
+      (if (not= previous-state current-state)
+        (if (contains? visited-states current-state)
+          (-add-message context :warning (str "Loop detected: " initial-state " -> ... -> " previous-state " -> " current-state))
+          (recur (conj visited-states current-state)
+                 (assoc context :new-state? true)))
+        context))))
 
 (defn execute
-    [{:keys [initial-data states]} {:keys [inputs config account exchange data orders]}]
+    [{:keys [initial-data states-by-id]} {:keys [inputs config account exchange data orders]}]
   (let [previous-state (peek (:dawn/state data))
         data           (if previous-state data initial-data)
         current-state  (peek (:dawn/state data))
@@ -154,7 +167,7 @@
                         :current-state current-state
                         :new-state?    (not= previous-state current-state)
                         :data          (dissoc data :dawn/state)}
-        results        (-run-execution-loop initial-state states context)]
+        results        (-run-execution-loop initial-state states-by-id context)]
     {:actions (:actions results)
      :messages (:messages results)
      :data (:data results)}))

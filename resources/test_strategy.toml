@@ -1,0 +1,32 @@
+name = "Test Strategy"
+description = "Strategy to test the dawn scripting engine"
+
+[[config]]
+    name = "conf1"
+    label = "Config 1"
+    type = "number"
+    default = 0
+[[config]]
+    name = "conf2"
+    label = "Config 2"
+    type = "number"
+    default = 0
+
+[inputs]
+    in1 = { type = "number" }
+    in2 = { type = "number" }
+
+[data]
+    a = 0
+    counter = 0
+
+[states]
+    initial = "start"
+
+    [[states.state]]
+        id = "start"
+
+        [[states.state.trigger]]
+            when = "=> #counter < 2"
+            data.counter = "=> #counter + 1"
+            note.text = "=> [text: ['Counter = ', #counter]]"

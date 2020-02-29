@@ -66,8 +66,23 @@
    :bit-flip bit-flip
    :bit-test bit-test})
 
+(defn -read-var
+  [context node var-type var-name]
+  (let [vars (get context (get {:static :static
+                                :dynamic :data} var-type))
+        value (get vars var-name ::not-found)]
+    (if-not (and (keyword? value)
+                 (= value ::not-found))
+      value
+      (throw+ {:error ::var
+               :type :undefined
+               :variable var-name
+               :variable-type var-type
+               :metadata (meta node)
+               :message (str "Could not read undefined variable '" (when (= var-type :dynamic) "#") (name var-name) "'")}))))
+
 (defn evaluate
-  [context [node-type & [value :as args]]]
+  [context [node-type & [value :as args] :as node]]
   (try+
     (case node-type
     ; Literals
@@ -78,8 +93,8 @@
       :list-literal (mapv #(evaluate context %) args)
       :map-literal (into {} (for [[k v] value] [k (evaluate context v)]))
     ; Variable access
-      :static-var (get (:static context) value)
-      :dynamic-var (get (:data context) value)
+      :static-var (-read-var context node :static value)
+      :dynamic-var (-read-var context node :dynamic value)
     ; Field access
       :static-lookup (get-in (evaluate context value) (second args))
       :dynamic-lookup (get (evaluate context value)
@@ -104,6 +119,7 @@
               (-call-function context func-obj parameters)))
 (catch Exception e
   (println "Evaluation error in:" node-type args)
+  (println "Metadata:" (meta node))
   (println "Exception:" e)
   (println))))
 

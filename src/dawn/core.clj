@@ -52,11 +52,29 @@
   [strategy instance]
   (runtime/execute strategy instance))
 
-(let [strategy (load-string (slurp "resources/strategy.toml"))
-      instance {:inputs   (into
-                           {:x 5
-                            :status (into {} (map (fn [k] [(keyword k) true]) (get-in strategy [:inputs :status :fields])))}
-                           (map (fn [k] [k 10]) (keys (dissoc (:inputs strategy) :status))))
+(defn friendly-path
+  [strategy path]
+  (->> path         
+       (reduce (fn [[path object] key]
+                 (let [object (get object key)
+                       key    (if (number? key)
+                                (if (contains? object :id)
+                                  (:id object)
+                                  key)
+                                (name key))]
+                   [(conj path key) object]))
+               [[] strategy])
+       (first)
+       (string/join ".")))
+
+#_(into
+   {:x      15
+    :status (into {} (map (fn [k] [(keyword k) true]) (get-in strategy [:inputs :status :fields])))}
+   (map (fn [k] [k 10]) (keys (dissoc (:inputs strategy) :status))))
+
+(let [strategy (load-file "resources/test_strategy.toml")
+      instance {:inputs   {:in1 0
+                           :in2 0}
                 :account  {:balance  1000
                            :leverage 1}
                 :config   {:order-sizes          [10 10 10 10]
@@ -73,18 +91,27 @@
                                                 :bid 100}}}
                 :orders   {}
                 :data     {}}]
-  (loop [instance instance
-         counter 5]
-    (println)
-    (println "Executing...")
-    (let [{:keys [actions messages data]} (execute strategy instance)]
-      (println "Actions:")
-      (clojure.pprint/pprint actions)
-      (println "Messages:")
-      (clojure.pprint/pprint messages)
-      (if (pos? counter)
-        (recur (assoc instance :data data) (dec counter))
-        (do
-          (println)
-          (println "Final Data:")
-          (clojure.pprint/pprint data))))))
+  (try+
+   (loop [instance instance
+          counter  5]
+     (println)
+     (println "Executing...")
+     (let [{:keys [actions messages data]} (execute strategy instance)]
+       (println "Actions:")
+       (clojure.pprint/pprint actions)
+       (println "Messages:")
+       (clojure.pprint/pprint messages)
+       (if (pos? counter)
+         (recur (assoc instance :data data) (dec counter))
+         (do
+           (println)
+           (println "Final Data:")
+           (clojure.pprint/pprint data)))))
+   (catch Object e 
+     (println "ERROR:" e)
+     (println (:message e))
+     (println "In:" (friendly-path strategy (:object-path e)))
+     (println (:source e))
+     (print (string/join "" (repeat (get-in e [:metadata :instaparse.gll/start-index]) " ")))
+     (println (string/join "" (repeat (- (get-in e [:metadata :instaparse.gll/end-index])
+                                         (get-in e [:metadata :instaparse.gll/start-index])) "^"))))))
