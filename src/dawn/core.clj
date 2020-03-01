@@ -93,7 +93,7 @@
                 :data     {}}]
   (try+
    (loop [instance instance
-          counter  5]
+          counter  2]
      (println)
      (println "Executing...")
      (let [{:keys [actions messages data]} (execute strategy instance)]

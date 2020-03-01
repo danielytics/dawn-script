@@ -126,6 +126,11 @@
                           :params [:text]
                           :return :text
                           :fn     nil}
+          :join          {:doc    {:text   "Join a list together into a single text item, sperated by 'seperator'"
+                                   :params ["list" "seperator"]}
+                          :params [:list :text]
+                          :return :text
+                          :fn     nil}
           :slice         {:doc    {:text   "Extract a region of the input text"
                                    :params ["text" "first" "length"]}
                           :params [:text :integer :integer]

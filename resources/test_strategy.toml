@@ -20,6 +20,12 @@ description = "Strategy to test the dawn scripting engine"
     a = 0
     counter = 0
 
+[functions]
+    [functions.sma]
+        params = {x = "number"}
+        formula = "=> #x "
+        action = "to-state: #result"
+
 [states]
     initial = "start"
 
@@ -30,3 +36,8 @@ description = "Strategy to test the dawn scripting engine"
             when = "=> #counter < 2"
             data.counter = "=> #counter + 1"
             note.text = "=> [text: ['Counter = ', #counter]]"
+            to-state = "end"
+    
+    [[states.state]]
+        id = "end"
+        note.text = "=> #counter"

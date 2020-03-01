@@ -67,7 +67,8 @@
    :accounts (merge {:balance 1000
                      :leverage 1}
                     account)
-   :config (merge {:con1 10}
+   :config (merge {:con1 10
+                   :counter-start 1}
                   config)
    :exchange {:candle (merge {:open 100
                               :high 110
@@ -86,7 +87,7 @@
 (deftest strategy-integration-test
   (let [strategy (dawn/load-string "[data]
                                       var1 = 1
-                                      counter = 1
+                                      counter = \"=> config.counter-start\"
                                     
                                     [states]
                                       initial = \"start-state\"
@@ -95,18 +96,48 @@
                                         data.var1 = 2
                                         data.var2 = 10
                                         data.counter = \"=> #counter + 1\"
-                                        note.text = \"=> [text: ['Var1:', #var1]]\"
+                                        note.text = \"=> [text: ['Var1:', #var1, ' Counter:', #counter]]\"
                                         [[states.state.trigger]]
                                           when = \"=> #counter < 3\"
                                           to-state = \"end-state\"
-                                        [[states.state]]
-                                          id = \"end-state\"
-                                          note.text = \"=> [text: ['Var1:', #var1, ' Counter:', #counter]]\"")]
+                                        [[states.state.trigger]]
+                                          when = \"=> #counter > 3\"
+                                          to-state = \"child\"
+                                      [[states.state]]
+                                        id = \"end-state\"
+                                        note.text = \"=> [text: ['Var1:', #var1, ' Counter:', #counter]]\"
+                                      [[states.state]]
+                                        id = \"parent\"
+                                        data.var3 = 15
+                                        [[states.state.trigger]]
+                                          when = true
+                                          note.text = \"Moving to child state\"
+                                          to-state = \"child\"
+                                      [[states.state]]
+                                        id = \"child\"
+                                        parent = \"parent\"
+                                        data.var4 = 88
+                                        [[states.state.trigger]]
+                                          when = true
+                                          note.text = \"Leaving child state\"
+                                          to-state = \"child2\"
+                                      [[states.state]]
+                                        id = \"child2\"
+                                        parent = \"child\"
+                                        [[states.state.trigger]]
+                                          when = true
+                                          note.text = \"To end-state!\"
+                                          to-state = \"end-state\"")]
     (testing "execute strategy"
       (let [result (dawn/execute strategy (make-instance {}))]
         (is (= ["Executing state: start-state"
-                "Var1:1"
+                "Var1:1 Counter:1"
                 "Transitioning state to: end-state"
                 "Executing state: end-state"
                 "Var1:2 Counter:2"]
-               (mapv :text (:messages result))))))))
+               (mapv :text (:messages result))))))
+    
+    (testing "child states"
+      (let [result (dawn/execute strategy (make-instance {:config {:counter-start 4}}))]
+        (is (= nil
+               result))))))

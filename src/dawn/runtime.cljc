@@ -32,13 +32,19 @@
   (fn [[key value]]
     [key (-eval context value)]))
 
+(defn -kv-evaluate
+  [context kv]
+  (let [kv-eval (-make-kv-evaluator context)]
+    (->> kv
+         (map kv-eval)
+         (into {}))))
+
 (defn -evaluate-order
   "Evaluate the when expression and if true, evaluate each field of the order"
   [context order]
   (when (-eval context (:when order))
     (->> (dissoc order :when)
-         (map (fn [[k v]] [k (-eval context v)]))
-         (into {}))))
+         (-kv-evaluate context))))
 
 (defn -evaluate-orders
   "Generate a list of orders by evaluating the appropriate fields of orders and expanding foreach statemens"
@@ -90,12 +96,13 @@
   [context trigger-action]
   (let [new-state (-eval context (:to-state trigger-action))]
   ; Need to retract orders here by creating actions
-    (cond-> {:context  (assoc context :current-state (or new-state (:current-state context)))
-             :messages []
-             :data     (->> (:data trigger-action)
-                            (map (fn [[k v]] [k (-eval context v)]))
-                            (into (:data context)))}
-      (seq new-state) (-add-message :info (str "Transitioning state to: " new-state))
+    (println new-state (:current-state context))
+    (cond-> (-> context
+                (assoc :current-state (or new-state (:current-state context)))
+                (update :data #(->> (:data trigger-action)
+                                    (-kv-evaluate context)
+                                    (merge %))))
+      new-state (-add-message :info (str "Transitioning state to: " new-state))
       (:note trigger-action) (-add-message (get-in trigger-action [:note :category] :note)
                                            (-eval context (get-in trigger-action [:note :text]))))))
 
@@ -105,44 +112,57 @@
         actions (for [order orders]
                   (-order->effect context order))]
     (println "Current state:" (:current-state context))
-    (println "Orders: " orders)
-    (println "Data:" (:data context))
-    (println "Actions:")
-    (clojure.pprint/pprint actions)
-    {:context context
-     :data    (:data context)
-     :actions actions}))
+    (update context :actions into actions)))
+
+(defn -execute-state
+  [context state]
+  (println "EXEC" (:id state) (:current-state context))
+  (if-let [trigger-action (some (-check-trigger-fn context) (:trigger state))]
+    (-process-trigger-action context trigger-action)
+    (-process-orders context (:orders state))))
+
+(defn -execute-state-enter
+  [context state]
+  (let [context  (cond-> context
+                   true (update :data #(->> (:data state)
+                                            (-kv-evaluate context)
+                                            (merge %)))
+                   (seq (:note state)) (-add-message (get-in state [:note :category] :note)
+                                                     (-eval context (get-in state [:note :text]))))
+        result (-execute-state context state)]
+    (if (not= (:current-state context)
+              (:current-state result))
+      (reduced result)
+      result)))
 
 (defn -execute
-  [context state]
-  (let [context (if (:new-state? context)
-                  (cond-> (->> (:data state)
-                               (map (fn [[k v]] [k (-eval context v)]))
-                               (into {})
-                               (update context :data merge))
-                      (seq (:note state)) (-add-message (get-in state [:note :category] :note)
-                                                        (-eval context (get-in state [:note :text]))))
-                  context)]
-    (if-let [trigger-action (some (-check-trigger-fn context) (:trigger state))]
-      (-process-trigger-action context trigger-action)
-      (-process-orders context (:orders state)))))
+  [context states state]
+  (if (:new-state? context)
+    (let [common (->> (:parents state)
+                      (map vector (get-in context [:data :dawn/state]))
+                      (drop-while #(apply = %))
+                      (mapv second))]
+      (->> (if (seq common) common (:parents state))
+           (map #(get states %))
+           (reduce -execute-state-enter context)))
+    (-execute-state context state)))
 
 ; TODO: nested state
 (defn -run-execution-loop
   [initial-state states context]
   (loop [visited-states #{initial-state}
           context         context]
+    (println visited-states (:current-state context))
     (let [current-state                  (:current-state context)
-          results                        (-> context
+          context                        (-> context
                                              (-add-message :info (str "Executing state: " current-state))
-                                             (-execute (get states current-state)))
+                                             (-execute states (get states current-state)))
           previous-state                 current-state
-          context                        (:context results)
           current-state                  (:current-state context)
           context                        (-> context
-                                             (assoc :data (assoc (:data results) :dawn/state [current-state]))
-                                             (update :messages into (:messages results))
-                                             (update :actions into (:actions results)))]
+                                             (assoc :data (assoc (:data context) :dawn/state [current-state]))
+                                             (update :messages into (:messages context))
+                                             (update :actions into (:actions context)))]
       (if (not= previous-state current-state)
         (if (contains? visited-states current-state)
           (-add-message context :warning (str "Loop detected: " initial-state " -> ... -> " previous-state " -> " current-state))
@@ -152,21 +172,23 @@
 
 (defn execute
     [{:keys [initial-data states-by-id]} {:keys [inputs config account exchange data orders]}]
-  (let [previous-state (peek (:dawn/state data))
-        data           (if previous-state data initial-data)
+  (let [static-data    {:static {:inputs   inputs
+                                 :config   config
+                                 :account  account
+                                 :exchange exchange}}
+        previous-state (peek (:dawn/state data))
+        data           (if previous-state data (-kv-evaluate static-data initial-data))
         current-state  (peek (:dawn/state data))
         initial-state  (or previous-state current-state)
-        context        {:static        {:inputs   inputs
-                                        :config   config
-                                        :account  account
-                                        :exchange exchange}
-                        :libs          builtins/libraries
-                        :orders        orders
-                        :messages      []
-                        :actions       []
-                        :current-state current-state
-                        :new-state?    (not= previous-state current-state)
-                        :data          (dissoc data :dawn/state)}
+        context        (merge
+                         static-data
+                         {:libs          builtins/libraries
+                          :orders        orders
+                          :messages      []
+                          :actions       []
+                          :current-state current-state
+                          :new-state?    (not= previous-state current-state)
+                          :data          (dissoc data :dawn/state)})
         results        (-run-execution-loop initial-state states-by-id context)]
     {:actions (:actions results)
      :messages (:messages results)
