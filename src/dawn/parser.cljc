@@ -2,6 +2,7 @@
   (:require [instaparse.core :as insta]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.set :as sets]
             [slingshot.slingshot :refer [throw+ try+]]
             [dawn.types :as types])
   (:import [org.tomlj Toml]))
@@ -119,7 +120,7 @@
       (let [error (insta/get-failure results)]
         (swap! parse-errors conj {:path    path
                                   :failure error})
--\        {:error error})
+        {:error error})
       ; If this string parses correctly, return the parsed value
       (let [results (second results)]
         (case (first results)
@@ -160,7 +161,6 @@
 
 (defn -find-parent
   [states state-id]
-  (println state-id)
   (get-in states [state-id :parent]))
 
 (defn -preprocess-states
@@ -168,22 +168,22 @@
   (->> states
        (map (fn [[state-id state]]
               (let [parents (vec (into (list state-id) (take-while seq (iterate #(-find-parent states %) (:parent state)))))
-                    variables (reduce clojure.set/union initial-variables (map #(keys (get-in states [% :data])) parents))]
-                (println state-id "->" (:parent state) parents variables)
-                [state-id (assoc state :parents parents)])))
+                    variables (reduce (comp set sets/union) initial-variables (map #(keys (get-in states [% :data])) parents))]
+                [state-id (assoc state :key parents :variables variables)])))
        (into {})))
 
 (defn -prepare-strategy
   [{:keys [inputs config data states]}]
-  (let [strategy {:inputs       inputs
-                  :config       config
-                  :initial-data (assoc data :dawn/state [(:initial states)])
-                  :states       states
-                  :states-by-id (->> (:state states)
-                                     (group-by :id)
-                                     (map (fn [[k v]] [k (first v)]))
-                                     (into {}))}]
-    (update strategy :states-by-id -preprocess-states (set (keys (:initial-data strategy))))))
+  (-> {:inputs       inputs
+       :config       config
+       :initial-data data
+       :states       states
+       :states-by-id (->> (:state states)
+                          (group-by :id)
+                          (map (fn [[k v]] [k (first v)]))
+                          (into {}))}
+      (assoc-in [:initial-data :dawn/state] (:initial states))
+      (update :states-by-id -preprocess-states (set (keys data)))))
 
 (defn load-toml
   "Take a parser function and source string and convert source string into a tree structure"

@@ -1,4 +1,5 @@
-(ns dawn.types)
+(ns dawn.types
+  (:refer-clojure :exclude [keys]))
 
 (defprotocol Formula
   (source [_] "Returns the source string for the formula")
@@ -21,7 +22,8 @@
   (toString [_] source-code)
   (hashCode [_] (.hashCode object-path))
   (equals [_ other]
-    (= object-path (keys other))))
+    (and (satisfies? Formula other)
+         (= object-path (keys other)))))
 
 (deftype FunctionVar [fn-path]
   FuncRef
@@ -32,7 +34,7 @@
   (toString [_] (str "[FunctionVar: " fn-path "]"))
   (hashCode [fn-path] (.hashCode fn-path))
   (equals [_ other]
-    (and (satisfies? FunctionVar other)
+    (and (satisfies? FuncRef other)
          (= fn-path (path other)))))
 
 (defn formula

@@ -84,50 +84,52 @@
    :orders {}
    :data {}})
 
+(def integration-test-source
+  "[data]
+    var1 = 1
+    counter = \"=> config.counter-start\"
+   
+   [states]
+    initial = \"start-state\"
+    [[states.state]]
+      id = \"start-state\"
+      data.var1 = 2
+      data.var2 = 10
+      data.counter = \"=> #counter + 1\"
+      note.text = \"=> [text: ['Var1:', #var1, ' Counter:', #counter]]\"
+      [[states.state.trigger]]
+        when = \"=> #counter < 3\"
+        to-state = \"end-state\"
+      [[states.state.trigger]]
+        when = \"=> #counter > 3\"
+        to-state = \"child1\"
+    [[states.state]]
+      id = \"end-state\"
+      note.text = \"=> [text: ['Var1:', #var1, ' Counter:', #counter]]\"
+    [[states.state]]
+      id = \"parent\"
+      data.var3 = 15
+      data.counter = \"=> #counter + 1\"
+    [[states.state]]
+      id = \"child1\"
+      parent = \"parent\"
+      data.var4 = 88
+      data.counter = \"=> #counter + 1 \"
+      [[states.state.trigger]]
+        when = true
+        note.text = \"Leaving child state\"
+        to-state = \"child2\"
+    [[states.state]]
+      id = \"child2\"
+      parent = \"child\"
+      data.counter = \"=> #counter + 1 \"
+      [[states.state.trigger]]
+        when = true
+        note.text = \"To end-state!\"
+        to-state = \"end-state\"")
+
 (deftest strategy-integration-test
-  (let [strategy (dawn/load-string "[data]
-                                      var1 = 1
-                                      counter = \"=> config.counter-start\"
-                                    
-                                    [states]
-                                      initial = \"start-state\"
-                                      [[states.state]]
-                                        id = \"start-state\"
-                                        data.var1 = 2
-                                        data.var2 = 10
-                                        data.counter = \"=> #counter + 1\"
-                                        note.text = \"=> [text: ['Var1:', #var1, ' Counter:', #counter]]\"
-                                        [[states.state.trigger]]
-                                          when = \"=> #counter < 3\"
-                                          to-state = \"end-state\"
-                                        [[states.state.trigger]]
-                                          when = \"=> #counter > 3\"
-                                          to-state = \"child\"
-                                      [[states.state]]
-                                        id = \"end-state\"
-                                        note.text = \"=> [text: ['Var1:', #var1, ' Counter:', #counter]]\"
-                                      [[states.state]]
-                                        id = \"parent\"
-                                        data.var3 = 15
-                                        [[states.state.trigger]]
-                                          when = true
-                                          note.text = \"Moving to child state\"
-                                          to-state = \"child\"
-                                      [[states.state]]
-                                        id = \"child\"
-                                        parent = \"parent\"
-                                        data.var4 = 88
-                                        [[states.state.trigger]]
-                                          when = true
-                                          note.text = \"Leaving child state\"
-                                          to-state = \"child2\"
-                                      [[states.state]]
-                                        id = \"child2\"
-                                        parent = \"child\"
-                                        [[states.state.trigger]]
-                                          when = true
-                                          note.text = \"To end-state!\"
-                                          to-state = \"end-state\"")]
+  (let [strategy (dawn/load-string integration-test-source)]
     (testing "execute strategy"
       (let [result (dawn/execute strategy (make-instance {}))]
         (is (= ["Executing state: start-state"
@@ -139,5 +141,15 @@
     
     (testing "child states"
       (let [result (dawn/execute strategy (make-instance {:config {:counter-start 4}}))]
-        (is (= nil
-               result))))))
+        (is (= ["Executing state: start-state"
+                 "Var1:1 Counter:4"
+                 "Transitioning state to: child1"
+                 "Executing state: child1"
+                 "Leaving child state"
+                 "Transitioning state to: child2"
+                 "Executing state: child2"
+                 "To end-state!"
+                 "Transitioning state to: end-state"
+                 "Executing state: end-state"
+                 "Var1:2 Counter:8"]
+               (mapv :text (:messages result))))))))

@@ -50,18 +50,20 @@
   "Generate a list of orders by evaluating the appropriate fields of orders and expanding foreach statemens"
   [context orders]
   (let [eval-kv (-make-kv-evaluator context)]
-    (remove
-     nil?
-     (reduce
-      (fn [all-orders order-template]
-        (if-let [foreach (:foreach order-template)]
-          (into all-orders (for [var-bindings (-generate-binding-combos (map eval-kv foreach))]
-                             (-evaluate-order
-                              (update context :data merge var-bindings)
-                              (dissoc order-template :foreach))))
-          (conj all-orders (-evaluate-order context order-template))))
-      []
-      orders))))
+    (->> orders
+         (reduce
+          (fn [all-orders order-template]
+            (if-let [foreach (:foreach order-template)]
+              (into all-orders (for [var-bindings (-generate-binding-combos (map eval-kv foreach))]
+                                 (-evaluate-order
+                                  (update context :data merge var-bindings)
+                                  (dissoc order-template :foreach))))
+              (conj all-orders (-evaluate-order context order-template))))
+          [])
+         (remove nil?)
+         (group-by :tag)
+         (map (fn [[k v]] [k (first v)]))
+         (into {}))))
 
 (defn -order->effect
   [context order]
@@ -87,82 +89,90 @@
   [context category message]
   (let [category-kw (keyword category)]
     (if (contains? #{:warning :error :info :note :order} category-kw)
-      (update context :messages conj {:category category-kw
-                                      :time     nil
-                                      :text     message})
+      (do
+        (update context :messages conj {:category category-kw
+                                        :time     nil
+                                        :text     message}))
       (-add-message context :warning (str "Tried to add note with invalid category '" category "': " message)))))
+
+(defn -eval-message
+  "Add note to messaegs, if required"
+  [context note]
+  (if (seq note)
+    (-add-message context
+                  (get note :category :note)
+                  (-eval context (get note :text "")))
+    context))
 
 (defn -process-trigger-action
   [context trigger-action]
   (let [new-state (-eval context (:to-state trigger-action))]
-  ; Need to retract orders here by creating actions
-    (println new-state (:current-state context))
-    (cond-> (-> context
-                (assoc :current-state (or new-state (:current-state context)))
-                (update :data #(->> (:data trigger-action)
-                                    (-kv-evaluate context)
-                                    (merge %))))
-      new-state (-add-message :info (str "Transitioning state to: " new-state))
-      (:note trigger-action) (-add-message (get-in trigger-action [:note :category] :note)
-                                           (-eval context (get-in trigger-action [:note :text]))))))
+    ; Need to retract orders here by creating actions
+    (-> context
+        (assoc :current-state (or new-state (:current-state context)))
+        (update :data merge (-kv-evaluate context (:data trigger-action)))
+        (-eval-message (:note trigger-action))
+        (-eval-message (when new-state {:category :info
+                                        :text (str "Transitioning state to: " new-state)})))))
 
 (defn -process-orders
   [context orders]
   (let [orders  (-evaluate-orders context orders)
         actions (for [order orders]
                   (-order->effect context order))]
-    (println "Current state:" (:current-state context))
-    (update context :actions into actions)))
+    (-> context
+        (update :orders (partial merge-with merge) orders)
+        (update :actions into actions))))
 
 (defn -execute-state
   [context state]
-  (println "EXEC" (:id state) (:current-state context))
   (if-let [trigger-action (some (-check-trigger-fn context) (:trigger state))]
     (-process-trigger-action context trigger-action)
     (-process-orders context (:orders state))))
 
-(defn -execute-state-enter
+(defn -check-state-change
+  "Check if a state transition has been triggered, abort reduction if so"
+  [{:keys [current-state] :as context} previous-state]
+  (if (not= current-state previous-state)
+    (reduced context)
+    context))
+
+(defn -apply-state
   [context state]
-  (let [context  (cond-> context
-                   true (update :data #(->> (:data state)
-                                            (-kv-evaluate context)
-                                            (merge %)))
-                   (seq (:note state)) (-add-message (get-in state [:note :category] :note)
-                                                     (-eval context (get-in state [:note :text]))))
-        result (-execute-state context state)]
-    (if (not= (:current-state context)
-              (:current-state result))
-      (reduced result)
-      result)))
+  (-> context
+      (-eval-message (:note state))
+      (update :data merge (-kv-evaluate context (:data state)))
+      (-execute-state state)
+      (-check-state-change (:current-state context))))
 
 (defn -execute
-  [context states state]
+  [context states {:keys [key] :as state}]
   (if (:new-state? context)
-    (let [common (->> (:parents state)
-                      (map vector (get-in context [:data :dawn/state]))
-                      (drop-while #(apply = %))
-                      (mapv second))]
-      (->> (if (seq common) common (:parents state))
-           (map #(get states %))
-           (reduce -execute-state-enter context)))
+    (->> key
+         ; Find the number of common parent keys (if any) and drop them
+         (drop (->> (get-in states [(:previous-state context) :key])
+                    (map vector key)
+                    (take-while #(apply = %))
+                    (count)))
+         ; Convert state ID's to state maps
+         (map #(get states %))
+         ; Apply each not-in-common parent state to context in turn
+         ; The current state is always at the end of the key, so will be applied also
+         (reduce -apply-state (update context :data select-keys (:variables state))))
+    ; If not a new state, simply execute the current state
     (-execute-state context state)))
 
-; TODO: nested state
 (defn -run-execution-loop
   [initial-state states context]
   (loop [visited-states #{initial-state}
           context         context]
-    (println visited-states (:current-state context))
     (let [current-state                  (:current-state context)
           context                        (-> context
                                              (-add-message :info (str "Executing state: " current-state))
                                              (-execute states (get states current-state)))
           previous-state                 current-state
           current-state                  (:current-state context)
-          context                        (-> context
-                                             (assoc :data (assoc (:data context) :dawn/state [current-state]))
-                                             (update :messages into (:messages context))
-                                             (update :actions into (:actions context)))]
+          context                        (assoc context :previous-state previous-state)]
       (if (not= previous-state current-state)
         (if (contains? visited-states current-state)
           (-add-message context :warning (str "Loop detected: " initial-state " -> ... -> " previous-state " -> " current-state))
@@ -176,20 +186,21 @@
                                  :config   config
                                  :account  account
                                  :exchange exchange}}
-        previous-state (peek (:dawn/state data))
+        previous-state (:dawn/state data)
         data           (if previous-state data (-kv-evaluate static-data initial-data))
-        current-state  (peek (:dawn/state data))
+        current-state  (:dawn/state data)
         initial-state  (or previous-state current-state)
         context        (merge
-                         static-data
-                         {:libs          builtins/libraries
-                          :orders        orders
-                          :messages      []
-                          :actions       []
-                          :current-state current-state
-                          :new-state?    (not= previous-state current-state)
-                          :data          (dissoc data :dawn/state)})
+                        static-data
+                        {:libs           builtins/libraries
+                         :orders         orders
+                         :messages       []
+                         :actions        []
+                         :previous-state previous-state
+                         :current-state  current-state
+                         :new-state?     (not= previous-state current-state)
+                         :data           (dissoc data :dawn/state)})
         results        (-run-execution-loop initial-state states-by-id context)]
     {:actions (:actions results)
      :messages (:messages results)
-     :data (:data results)}))
+     :data (assoc (:data results) :dawn/state (:current-state results))}))
