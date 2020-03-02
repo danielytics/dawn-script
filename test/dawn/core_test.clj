@@ -153,3 +153,45 @@
                  "Executing state: end-state"
                  "Var1:2 Counter:8"]
                (mapv :text (:messages result))))))))
+
+(def order-test-source
+  " [data]
+      fill-price = 0
+    [states]
+      initial = \"not-in-position\"
+      [[states.state]]
+        id = \"not-in-position\"
+        [[states.state.trigger]]
+          when = \"=> inputs.in1 > 0\"
+          to-state = \"in-position\"
+        [[states.state.orders]]
+          tag = \"test\"
+          type = \"limit\"
+          side = \"buy\"
+          contracts = 100
+          price = \"=> exchange.candle.close + 10\"
+          on.fill.data.fill-price = \"=> event.fill-price\"
+          on.fill.to-state = \"in-position\"
+      [[states.state]]
+        id = \"in-position\"
+        [[states.state.orders]]
+          tag = \"stop-loss\"
+          type = \"stop-market\"
+          trigger = \"=> #fill-price - 100\"
+          instructions = [\"close\"]")
+
+(deftest strategy-order-test
+  (let [strategy (dawn/load-string order-test-source)
+        instance (atom (make-instance {}))
+        advance! (fn [& [changes]] (swap! instance #(assoc % :data (:data (dawn/execute strategy (merge-with merge % changes))))))]
+    (testing "creates order"
+      (is (= {:fill-price 0
+              :dawn/orders #{"test"}
+              :dawn/state "not-in-position"}
+             (:data (advance!)))))
+    
+    (testing "creates new orders on state change"
+      (is (= {:fill-price 0
+              :dawn/orders #{"stop-loss"}
+              :dawn/state "in-position"}
+             (:data (advance! {:inputs {:in1 1}})))))))

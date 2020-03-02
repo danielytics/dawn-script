@@ -42,7 +42,7 @@
 (defn -evaluate-order
   "Evaluate the when expression and if true, evaluate each field of the order"
   [context order]
-  (when (-eval context (:when order))
+  (when (-eval context (get order :when true))
     (->> (dissoc order :when)
          (-kv-evaluate context))))
 
@@ -62,7 +62,7 @@
           [])
          (remove nil?)
          (group-by :tag)
-         (map (fn [[k v]] [k (first v)]))
+         (map (fn [[k v]] [k (reduce merge v)]))
          (into {}))))
 
 (defn -order->effect
@@ -89,10 +89,9 @@
   [context category message]
   (let [category-kw (keyword category)]
     (if (contains? #{:warning :error :info :note :order} category-kw)
-      (do
-        (update context :messages conj {:category category-kw
-                                        :time     nil
-                                        :text     message}))
+      (update context :messages conj {:category category-kw
+                                      :time     nil
+                                      :text     message})
       (-add-message context :warning (str "Tried to add note with invalid category '" category "': " message)))))
 
 (defn -eval-message
@@ -117,17 +116,14 @@
 
 (defn -process-orders
   [context orders]
-  (let [orders  (-evaluate-orders context orders)
-        actions (for [order orders]
-                  (-order->effect context order))]
-    (-> context
-        (update :orders (partial merge-with merge) orders)
-        (update :actions into actions))))
+  (let [orders (-evaluate-orders context orders)]
+    (println "Orders:" orders)
+    (update context :orders (partial merge-with merge) orders)))
 
 (defn -execute-state
   [context state]
   (if-let [trigger-action (some (-check-trigger-fn context) (:trigger state))]
-    (-process-trigger-action context trigger-action)
+    (-process-trigger-action context trigger-action) 
     (-process-orders context (:orders state))))
 
 (defn -check-state-change
@@ -186,6 +182,7 @@
                                  :config   config
                                  :account  account
                                  :exchange exchange}}
+        _ (println "STATIC" static-data)
         previous-state (:dawn/state data)
         data           (if previous-state data (-kv-evaluate static-data initial-data))
         current-state  (:dawn/state data)
@@ -201,6 +198,8 @@
                          :new-state?     (not= previous-state current-state)
                          :data           (dissoc data :dawn/state)})
         results        (-run-execution-loop initial-state states-by-id context)]
-    {:actions (:actions results)
+    {:actions  (:actions results)
      :messages (:messages results)
-     :data (assoc (:data results) :dawn/state (:current-state results))}))
+     :data     (assoc (:data results)
+                      :dawn/state (:current-state results)
+                      :dawn/orders (set (keys (:orders results))))}))

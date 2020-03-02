@@ -14,6 +14,7 @@
            (set (dawn/-generate-binding-combos {:a [1 2]
                                                 :b [1 2 3]}))))))
 
+
 (deftest order-test
   (testing "evaluate expressions"
     (is (= "hello" (dawn/-eval {} "hello")))
@@ -34,6 +35,7 @@
     (is (nil?
          (dawn/-evaluate-order {} {:when      (types/formula {:ast [:binary-op :> [:integer 4] [:integer 5]]})
                                    :contracts (types/formula {:ast [:binary-op :+ [:integer 7] [:integer 3]]})})))))
+
 
 (deftest order->effect-test
   (testing "new order"
@@ -63,3 +65,43 @@
               :price       100
               :contracts   10}
              (dawn/-order->effect context order))))))
+
+
+(deftest process-trigger-action-test
+  (testing "adds data"
+    (is {:data {:foo "foo"
+                :bar "bar"}}
+        (dawn/-process-trigger-action {:data {:bar "bar"}} {:data {:foo "foo"}})))
+  
+  (testing "adds note"
+    (is (= [{:category :note
+             :text     "Hello"}]
+           (->> (dawn/-process-trigger-action {:messages []} {:note {:category :note
+                                                                     :text     "Hello"}})
+                :messages
+                (mapv #(dissoc % :time))))))
+  
+  (testing "changes state"
+    (is (= "new-state"
+           (:current-state (dawn/-process-trigger-action {} {:to-state "new-state"}))))))
+
+
+(deftest execute-state-test
+  (testing "apply triggers when condition matches a constant"
+    (is (=  "test"
+            (:current-state (dawn/-execute-state {} {:trigger [{:when     true
+                                                                :to-state "test"}]})))))
+  
+  (testing "apply triggers when condition matches a formula"
+    (is (=  "test"
+            (:current-state (dawn/-execute-state {} {:trigger [{:when     (types/formula {:ast [:binary-op :> [:integer 10] [:integer 1]]})
+                                                                :to-state "test"}]})))))
+  
+  (testing "don't apply triggers when condition does not match"
+    (is (nil? (:current-state (dawn/-execute-state {} {:trigger [{:when     false
+                                                                  :to-state "test"}]})))))
+  
+  (testing "apply triggers when condition does not match a formula"
+    (is (nil? (:current-state (dawn/-execute-state {} {:trigger [{:when     (types/formula {:ast [:binary-op :> [:integer 1] [:integer 10]]})
+                                                                  :to-state "test"}]}))))))
+
