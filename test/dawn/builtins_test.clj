@@ -18,3 +18,9 @@
     (is (= 3 (list/find [:a :b :c :d] :d)))
     (is (= 1 (list/find [:a :b :c :d] :b)))
     (is (= -1 (list/find [:a :b :c :d] :x)))))
+
+(deftest list-zip
+  (testing "zip"
+    (is (= [] (list/zip {})))
+    (is (= [{:a 1 :b 4} {:a 2 :b 5} {:a 3 :b 6}] (list/zip {:a [1 2 3] :b [4 5 6]})))
+    (is (= [{:a 1, :b 5} {:a 2, :b 6} {:a 3, :b 7} {:a 4, :b 8}] (list/zip {:a [1 2 3 4] :b [5 6 7 8]})))))
