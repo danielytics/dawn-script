@@ -144,19 +144,29 @@
 (defn -execute
   [context states {:keys [key] :as state}]
   (if (:new-state? context)
-    (->> key
+    (let [num-common (->> (get-in states [(:previous-state context) :key])
+                          (map vector key)
+                          (take-while #(apply = %))
+                          (count))
+          context    (-> context
+                         (update :data select-keys (:variables state))
+                         (assoc :orders {}))]
+      (->> key
          ; Find the number of common parent keys (if any) and drop them
-         (drop (->> (get-in states [(:previous-state context) :key])
-                    (map vector key)
-                    (take-while #(apply = %))
-                    (count)))
+           (drop num-common)
          ; Convert state ID's to state maps
-         (map #(get states %))
+           (map #(get states %))
          ; Apply each not-in-common parent state to context in turn
          ; The current state is always at the end of the key, so will be applied also
-         (reduce -apply-state (update context :data select-keys (:variables state))))
+           (reduce -apply-state (->> (take num-common key)
+                                     (map (comp :orders #(get states %)))
+                                     (reduce -process-orders context)))))
     ; If not a new state, simply execute the current state
-    (-execute-state context state)))
+    (-execute-state
+      (->> key
+           (map (comp :orders #(get states %)))
+           (reduce -process-orders context))
+      state)))
 
 (defn -run-execution-loop
   [initial-state states context]
