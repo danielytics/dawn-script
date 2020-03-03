@@ -36,11 +36,21 @@
                     :params [:number :number]
                     :return :number
                     :fn     min}
-          :apply   {:doc {:text "Apply function to list of arguments"
-                          :params ["function" "arguments"]}
+          :apply   {:doc    {:text   "Apply function to list of arguments"
+                             :params ["function" "arguments"]}
                     :params [:context :any :list]
                     :return :any
-                    :fn core-lib/apply}
+                    :fn     core-lib/apply}
+          :text    {:doc    {:text   "Join a list of variables together as text"
+                             :params ["list"]}
+                    :params [:list]
+                    :return :text
+                    :fn     #(apply str %)}
+          :format  {:doc    {:text   "Join a list of variables together as formatted text"
+                             :params ["format" "list"]}
+                    :params [:text :list]
+                    :return :text
+                    :fn     #(apply format %1 %2)}
           :doctext {:doc    {:text   "Returns the documentation text for a function"
                              :params ["function"]}
                     :params [:context :any]
@@ -114,6 +124,11 @@
           :un-capitalize {:doc    {:text   "Convert the first character of text to lower-case"
                                    :params ["text"]}
                           :params [:text]
+                          :return :text
+                          :fn     nil}
+          :join          {:doc    {:text   "Join a list together into a single text item, sperated by 'seperator'"
+                                   :params ["list" "seperator"]}
+                          :params [:list :text]
                           :return :text
                           :fn     nil}
           :slice         {:doc    {:text   "Extract a region of the input text"

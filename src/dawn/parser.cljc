@@ -2,6 +2,7 @@
   (:require [instaparse.core :as insta]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.set :as sets]
             [slingshot.slingshot :refer [throw+ try+]]
             [dawn.types :as types])
   (:import [org.tomlj Toml]))
@@ -119,7 +120,7 @@
       (let [error (insta/get-failure results)]
         (swap! parse-errors conj {:path    path
                                   :failure error})
--\        {:error error})
+        {:error error})
       ; If this string parses correctly, return the parsed value
       (let [results (second results)]
         (case (first results)
@@ -127,14 +128,17 @@
           :raw-text (second results)
           ; Code strings arereturned as a data structure containing the variables accessed and the parsed abstract syntax tree
           (types/formula
-           {:vars (-capture-variables results)
+           {:path path
+            :source x
+            :vars (-capture-variables results)
             :ast  results}))))))
 
 (defmethod to-clj org.tomlj.Parser$1
  ;; Root of a TOML data-structure, acts like a map
   [x _ parser]
   (->> (.toMap x)
-       (map (fn [[k v]] [(keyword k) (to-clj v [] parser)]))
+       (map (fn [[k v]] (let [k (keyword k)]
+                          [k (to-clj v [k] parser)])))
        (into {})))
 
 (defmethod to-clj org.tomlj.MutableTomlTable
@@ -155,15 +159,31 @@
    (range)
    (.toList x)))
 
+(defn -find-parent
+  [states state-id]
+  (get-in states [state-id :parent]))
+
+(defn -preprocess-states
+  [states initial-variables]
+  (->> states
+       (map (fn [[state-id state]]
+              (let [parents (vec (into (list state-id) (take-while seq (iterate #(-find-parent states %) (:parent state)))))
+                    variables (reduce (comp set sets/union) initial-variables (map #(keys (get-in states [% :data])) parents))]
+                [state-id (assoc state :key parents :variables variables)])))
+       (into {})))
+
 (defn -prepare-strategy
   [{:keys [inputs config data states]}]
-  {:inputs inputs
-   :config config
-   :initial-data (assoc data :dawn/state [(:initial states)])
-   :states (->> (:state states)
-                (group-by :id)
-                (map (fn [[k v]] [k (first v)]))
-                (into {}))})
+  (-> {:inputs       inputs
+       :config       config
+       :initial-data data
+       :states       states
+       :states-by-id (->> (:state states)
+                          (group-by :id)
+                          (map (fn [[k v]] [k (first v)]))
+                          (into {}))}
+      (assoc-in [:initial-data :dawn/state] (:initial states))
+      (update :states-by-id -preprocess-states (set (keys data)))))
 
 (defn load-toml
   "Take a parser function and source string and convert source string into a tree structure"

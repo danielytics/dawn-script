@@ -78,7 +78,7 @@ description = "Line tracking strategy with lots of smarts"
         id = "not-in-position"
 
         # This is just for testing, not actulaly part of this strategy
-        [[states.state.triggers]]
+        [[states.state.trigger]]
             when = "=> #a > inputs.x"
             to-state = "another-state"
             note.text = "Changing State"

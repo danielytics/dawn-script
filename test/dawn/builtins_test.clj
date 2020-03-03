@@ -6,7 +6,7 @@
 (deftest trades-test
   (testing "max-contracts"
     (is (= 988
-           (trades/max-contracts {:strategy {:leverage 1}} 100 10))))
+           (trades/max-contracts {:static {:account {:leverage 1}}} 100 10))))
   
   (testing "price-offset"
     (is (= 950.0
