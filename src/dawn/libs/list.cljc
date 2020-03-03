@@ -16,5 +16,4 @@
     (->> items-map
          vals
          (apply mapv vector)
-         (map #(zipmap (keys items-map) %))
-         vec)))
+         (mapv #(zipmap (keys items-map) %)))))
