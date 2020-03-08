@@ -24,7 +24,7 @@ description = "Strategy to test the dawn scripting engine"
     [functions.sma]
         params = {x = "number"}
         formula = "=> #x "
-        action = "to-state: #result"
+        action.to-state = "=> #result"
 
 [states]
     initial = "start"

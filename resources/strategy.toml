@@ -160,7 +160,7 @@ description = "Line tracking strategy with lots of smarts"
             instructions = ['close']
             trigger-price = "=> account.position > 0 ? inputs.long-stop : inputs.short-stop"
 
-        # Sync four DCA orders with the four upper or lower (depending on direction of position) line values
+        # Sync four DCA orders with the four upper or I feel like this will be a very powerful, flexible yet still easy to use paradigm!lower (depending on direction of position) line values
         [[states.state.orders]]
             # Duplicate this order for each line (long entry lower lines when in a long, short entry upper lines when in a short)
             foreach.line = "=> account.position > 0 ? #lower-lines : #upper-lines"

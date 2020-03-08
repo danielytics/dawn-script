@@ -103,5 +103,77 @@
   
   (testing "apply triggers when condition does not match a formula"
     (is (nil? (:current-state (dawn/-execute-state {} {:trigger [{:when     (types/formula {:ast [:binary-op :> [:integer 1] [:integer 10]]})
-                                                                  :to-state "test"}]}))))))
+                                                                  :to-state "test"}]})))))
+  
+  ; TODO: Should orders only be supressed when states change? Not just when triggers match
+  (testing "do not generate orders when trigger matches"
+    (is (empty? (:orders (dawn/-execute-state
+                          {}
+                          {:trigger [{:when true}]
+                           :orders  [{:tag "test"}]})))))
+  
+  (testing "generate orders when no trigger matches"
+    (is (= {"test" {:tag "test"}}
+           (:orders (dawn/-execute-state
+                      {}
+                      {:trigger [{:when false}]
+                       :orders  [{:tag "test"}]}))))))
 
+(deftest apply-state-test
+  (testing "does not abort when state doesn't do anything"
+    (let [result (dawn/-apply-state {} {})]
+      (is (not (reduced? result)))))
+
+  (testing "notes are applied"
+    (let [result (dawn/-apply-state {} {:note {:text "hi"}})]
+      (is (not (reduced? result)))
+      (is (= {:messages [{:category :note
+                          :text     "hi"}]
+              :data {}
+              :orders {}}
+           (update result :messages (partial mapv #(dissoc % :time)))))))
+
+  (testing "orders are applied"
+    (let [result (dawn/-apply-state {} {:orders [{:tag "foo" :type "market" :side "buy" :contracts 100}
+                                                 {:tag "bar" :type "market" :side "sell" :contracts (types/formula {:ast [:binary-op :* [:integer 50] [:integer 4]]})}]})]
+      (is (not (reduced? result)))
+      (is (= {:data   {}
+              :orders {"foo" {:type      "market"
+                              :side      "buy"
+                              :contracts 100
+                              :tag       "foo"}
+                       "bar" {:type      "market"
+                              :side      "sell"
+                              :contracts 200
+                              :tag       "bar"}}}
+             result))))
+
+  (testing "data is applied"
+    (let [result (dawn/-apply-state {} {:data {:a 100 :b (types/formula {:ast [:binary-op :+ [:integer 10] [:integer 2]]})}})]
+      (is (not (reduced? result)))
+      (is (= {:data   {:a 100 :b 12}
+              :orders {}}
+             result)))
+
+    (testing "triggers are applied after data"
+      (let [result (dawn/-apply-state {:current-state "foo"} {:data    {:a 1}
+                                                              :trigger [{:when true
+                                                                         :data {:a 2}}]})]
+        (is (not (reduced? result)))
+        (is (= {:data   {:a 2}
+                :current-state "foo"}
+               result))))
+  
+    (testing "triggers that change state abort the reduction"
+      (let [result (dawn/-apply-state {:current-state "foo"} {:data    {:a 1}
+                                                              :trigger [{:when true
+                                                                         :to-state "bar"
+                                                                         :data {:a 2}}]})]
+        (is (reduced? result))
+        (is (= {:data          {:a 2}
+                :messages [{:category :info :text "Transitioning state to: bar"}]
+                :current-state "bar"}
+               (update (unreduced result) :messages (partial mapv #(dissoc % :time)))))))))
+
+(deftest execute-test
+  (testing ""))

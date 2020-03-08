@@ -107,11 +107,8 @@
                   :- (- (evaluate context (second args)))
                   :bit-not (bit-not (evaluate context (second args))))
     ; Binary operators
-      :binary-op (let [_ (println (second args))
-                       lhs (evaluate context (second args))
-                       _ (println (second (next args)))
+      :binary-op (let [lhs (evaluate context (second args))
                        rhs (evaluate context (second (next args)))]
-                   (println lhs rhs)
                    ((get binary-operators value) lhs rhs))
     ; Ternary
       :ternary-expression (evaluate context (if (evaluate context value)
@@ -126,9 +123,6 @@
   (println "Metadata:" (meta node))
   (println "Exception:" e)
   (println))))
-
-
-(clojure.pprint/pprint  (evaluate {} [:binary-op :pow [:binary-op :+ [:integer 2] [:integer 3]] [:integer 4]])) 
 
 #_
 (try+ ; TODO: This error reporting should be used somewhere where it can be reported to the user

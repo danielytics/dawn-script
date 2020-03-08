@@ -195,3 +195,30 @@
               :dawn/orders #{"stop-loss"}
               :dawn/state "in-position"}
              (:data (advance! {:inputs {:in1 1}})))))))
+
+(def trigger-parent-state-data-source
+  "[states]
+     initial = \"start-state\"
+     [[states.state]]
+       id = \"parent-state\"
+       data.a = 2
+     [[states.state]]
+       id = \"medium\"
+       parent = \"parent-state\"
+       data.a = 4
+     [[states.state]]
+       id = \"start-state\"
+       parent = \"medium\"
+       [[states.state.trigger]]
+         when = \"=> #a > 3\"
+         to-state = \"end-state\"
+     [[states.state]]
+        id = \"end-state\"")
+
+(deftest trigger-based-on-parent-state-data-test
+  (let [strategy (dawn/load-string trigger-parent-state-data-source)
+        instance (make-instance {})]
+    (testing "parent data is available in trigger"
+      (is (= {:dawn/state "end-state"
+              :dawn/orders #{}}
+             (:data (dawn/execute strategy instance)))))))

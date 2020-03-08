@@ -152,12 +152,12 @@
                          (update :data select-keys (:variables state))
                          (assoc :orders {}))]
       (->> key
-         ; Find the number of common parent keys (if any) and drop them
+           ; Find the number of common parent keys (if any) and drop them
            (drop num-common)
-         ; Convert state ID's to state maps
+           ; Convert state ID's to state maps
            (map #(get states %))
-         ; Apply each not-in-common parent state to context in turn
-         ; The current state is always at the end of the key, so will be applied also
+           ; Apply each not-in-common parent state to context in turn
+           ; The current state is always at the end of the key, so will be applied also
            (reduce -apply-state (->> (take num-common key)
                                      (map (comp :orders #(get states %)))
                                      (reduce -process-orders context)))))
@@ -192,8 +192,7 @@
                                  :config   config
                                  :account  account
                                  :exchange exchange}}
-        _ (println "STATIC" static-data)
-        previous-state (:dawn/state data)
+         previous-state (:dawn/state data)
         data           (if previous-state data (-kv-evaluate static-data initial-data))
         current-state  (:dawn/state data)
         initial-state  (or previous-state current-state)
