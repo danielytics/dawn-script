@@ -127,7 +127,8 @@
     (-process-orders context (:orders state))))
 
 (defn -check-state-change
-  "Check if a state transition has been triggered, abort reduction if so"
+  "Check if a state transition has been triggered, abort reduct
+ion if so"
   [{:keys [current-state] :as context} previous-state]
   (if (not= current-state previous-state)
     (reduced context)
@@ -192,9 +193,10 @@
                                  :config   config
                                  :account  account
                                  :exchange exchange}}
-         previous-state (:dawn/state data)
+        previous-state (:dawn/state data)
         data           (if previous-state data (-kv-evaluate static-data initial-data))
         current-state  (:dawn/state data)
+        _ (println previous-state current-state data initial-data)
         initial-state  (or previous-state current-state)
         context        (merge
                         static-data

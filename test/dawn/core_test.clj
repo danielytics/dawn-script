@@ -132,6 +132,7 @@
   (let [strategy (dawn/load-string integration-test-source)]
     (testing "execute strategy"
       (let [result (dawn/execute strategy (make-instance {}))]
+        (println result)
         (is (= ["Executing state: start-state"
                 "Var1:1 Counter:1"
                 "Transitioning state to: end-state"

@@ -11,10 +11,16 @@ description = "Strategy to test the dawn scripting engine"
     label = "Config 2"
     type = "number"
     default = 0
+[[config]]
+    name = "ma-src"
+    label = "Moving Average Source"
+    type = "signal"
+    default = "signals.ema"
 
 [inputs]
     in1 = { type = "number" }
     in2 = { type = "number" }
+    sig1 = { type = "signal", source = "config.ma-src" }
 
 [data]
     a = 0
