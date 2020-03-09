@@ -172,18 +172,50 @@
                 [state-id (assoc state :key parents :variables variables)])))
        (into {})))
 
+(defn -extract-triggers
+  [orders state-id]
+  (->> orders
+       (map-indexed
+        (fn [order-idx order]
+          (let [[trig->id id->body] (reduce
+                                     (fn [[ids bodies] [k body]]
+                                       (let [id (keyword (str state-id "." order-idx) (name k))]
+                                         [(assoc ids k id) (assoc bodies id body)]))
+                                     [{} {}]
+                                     (:on order))]
+            {:order    (assoc order :on trig->id)
+             :triggers id->body})))
+       (reduce
+        (fn [results item]
+          (-> results
+              (update :orders conj (:order item))
+              (update :triggers merge (:triggers item))))
+       {:orders   []
+        :triggers {}})))
+
 (defn -prepare-strategy
   [{:keys [inputs config data states]}]
-  (-> {:inputs       inputs
-       :config       config
-       :initial-data data
-       :states       states
-       :states-by-id (->> (:state states)
-                          (group-by :id)
-                          (map (fn [[k v]] [k (first v)]))
-                          (into {}))}
-      (assoc-in [:initial-data :dawn/state] (:initial states))
-      (update :states-by-id -preprocess-states (set (keys data)))))
+  (let [raw-states        states
+        [states triggers] (next
+                           (reduce
+                            (fn [[state-idx states triggers] state]
+                              (let [results (-extract-triggers (:orders state) state-idx)]
+                                [(inc state-idx)
+                                 (conj states (assoc state :orders (:orders results)))
+                                 (merge triggers (:triggers results))]))
+                            [0 [] {}]
+                            (:state states)))]
+    (-> {:inputs       inputs
+         :config       config
+         :initial-data data
+         :states       (assoc raw-states :state states)
+         :triggers     triggers
+         :states-by-id (->> states
+                            (group-by :id)
+                            (map (fn [[k v]] [k (first v)]))
+                            (into {}))}
+        (assoc-in [:initial-data :dawn/state] (:initial raw-states))
+        (update :states-by-id -preprocess-states (set (keys data))))))
 
 (defn load-toml
   "Take a parser function and source string and convert source string into a tree structure"

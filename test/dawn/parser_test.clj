@@ -84,3 +84,45 @@
             b "=> ((1 + (2 * 3)) - 4) and (5 + (2 * (3 ^ (-2))))"]
         (is (= (dawn/parse parser a)
                (dawn/parse parser b)))))))
+
+(deftest extract-triggers-test
+  (testing "extracts triggers"
+    (is (= {:triggers {:0.0/fill    {:to-state "filled"}
+                       :0.0/cancel  {:data {:a 5}}
+                       :0.1/trigger {:note {:text "hi"}}}
+            :orders [{:on {:fill :0.0/fill
+                           :cancel :0.0/cancel}}
+                     {:on {:trigger :0.1/trigger}}]}
+           (dawn/-extract-triggers [{:on {:fill {:to-state "filled"}
+                                          :cancel {:data {:a 5}}}}
+                                    {:on {:trigger {:note {:text "hi"}}}}]
+                                   0)))))
+
+(deftest postprocess-test
+  (testing "triggers are extracted and replaced by ids"
+    (let [strategy (dawn/load-toml (dawn/make-parser)
+                                   "[[states.state]]
+                                      id = 0
+                                      [[states.state.orders]]
+                                        [states.state.orders.on.fill]
+                                          to-state = \"filled\"
+                                        [states.state.orders.on.cancel]
+                                          to-state = \"cancelled\"
+                                    [[states.state]]
+                                      id = 1
+                                      [[states.state.orders]]
+                                        [states.state.orders.on.trigger]
+                                          data.a = 5
+                                      [[states.state.orders]]
+                                        [states.state.orders.on.fill]
+                                          note.text = \"hello\"")]
+      (is (= {:0.0/fill    {:to-state "filled"}
+              :0.0/cancel  {:to-state "cancelled"}
+              :1.0/trigger {:data {:a 5}}
+              :1.1/fill    {:note {:text "hello"}}}
+             (:triggers strategy)))
+      (is (= [[{:on {:fill   :0.0/fill
+                     :cancel :0.0/cancel}}]
+              [{:on {:trigger :1.0/trigger}}
+               {:on {:fill :1.1/fill}}]]
+             (mapv (comp :orders second) (:states-by-id strategy)))))))
