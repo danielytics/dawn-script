@@ -142,7 +142,7 @@ ion if so"
       (-execute-state state)
       (-check-state-change (:current-state context))))
 
-(defn -execute
+(defn -execution-pass
   [context states {:keys [key] :as state}]
   (if (:new-state? context)
     (let [num-common (->> (get-in states [(:previous-state context) :key])
@@ -176,19 +176,18 @@ ion if so"
     (let [current-state                  (:current-state context)
           context                        (-> context
                                              (-add-message :info (str "Executing state: " current-state))
-                                             (-execute states (get states current-state)))
-          previous-state                 current-state
-          current-state                  (:current-state context)
-          context                        (assoc context :previous-state previous-state)]
-      (if (not= previous-state current-state)
-        (if (contains? visited-states current-state)
-          (-add-message context :warning (str "Loop detected: " initial-state " -> ... -> " previous-state " -> " current-state))
-          (recur (conj visited-states current-state)
+                                             (-execution-pass states (get states current-state))
+                                             (assoc :previous-state current-state))
+          next-state                  (:current-state context)]
+      (if (not= next-state current-state)
+        (if (contains? visited-states next-state)
+          (-add-message context :warning (str "Loop detected: " initial-state " -> ... -> " current-state " -> " next-state))
+          (recur (conj visited-states next-state)
                  (assoc context :new-state? true)))
         context))))
 
 (defn execute
-    [{:keys [initial-data states-by-id]} {:keys [inputs config account exchange data orders]}]
+    [{:keys [initial-data states-by-id]} {:keys [inputs config account exchange data]}]
   (let [static-data    {:static {:inputs   inputs
                                  :config   config
                                  :account  account
@@ -196,12 +195,10 @@ ion if so"
         previous-state (:dawn/state data)
         data           (if previous-state data (-kv-evaluate static-data initial-data))
         current-state  (:dawn/state data)
-        _ (println previous-state current-state data initial-data)
         initial-state  (or previous-state current-state)
         context        (merge
                         static-data
                         {:libs           builtins/libraries
-                         :orders         orders
                          :messages       []
                          :actions        []
                          :previous-state previous-state
@@ -209,8 +206,7 @@ ion if so"
                          :new-state?     (not= previous-state current-state)
                          :data           (dissoc data :dawn/state)})
         results        (-run-execution-loop initial-state states-by-id context)]
-    {:actions  (:actions results)
-     :messages (:messages results)
-     :data     (assoc (:data results)
-                      :dawn/state (:current-state results)
-                      :dawn/orders (set (keys (:orders results))))}))
+    (-> results
+        (select-keys [:actions :messages :data])
+        (assoc-in [:data :dawn/state] (:current-state results))
+        (assoc-in [:data :dawn/orders] (set (keys (:orders results)))))))
