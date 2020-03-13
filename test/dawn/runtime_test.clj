@@ -86,38 +86,31 @@
            (:current-state (dawn/-process-trigger-action {} {:to-state "new-state"}))))))
 
 
-(deftest execute-state-test
+(deftest evaluate-triggers-test
   (testing "apply triggers when condition matches a constant"
     (is (=  "test"
-            (:current-state (dawn/-execute-state {} {:trigger [{:when     true
+            (:current-state (dawn/-evaluate-triggers {} {:trigger [{:when     true
                                                                 :to-state "test"}]})))))
   
   (testing "apply triggers when condition matches a formula"
     (is (=  "test"
-            (:current-state (dawn/-execute-state {} {:trigger [{:when     (types/formula {:ast [:binary-op :> [:integer 10] [:integer 1]]})
+            (:current-state (dawn/-evaluate-triggers {} {:trigger [{:when     (types/formula {:ast [:binary-op :> [:integer 10] [:integer 1]]})
                                                                 :to-state "test"}]})))))
   
   (testing "don't apply triggers when condition does not match"
-    (is (nil? (:current-state (dawn/-execute-state {} {:trigger [{:when     false
+    (is (nil? (:current-state (dawn/-evaluate-triggers {} {:trigger [{:when     false
                                                                   :to-state "test"}]})))))
   
   (testing "apply triggers when condition does not match a formula"
-    (is (nil? (:current-state (dawn/-execute-state {} {:trigger [{:when     (types/formula {:ast [:binary-op :> [:integer 1] [:integer 10]]})
+    (is (nil? (:current-state (dawn/-evaluate-triggers {} {:trigger [{:when     (types/formula {:ast [:binary-op :> [:integer 1] [:integer 10]]})
                                                                   :to-state "test"}]})))))
   
   ; TODO: Should orders only be supressed when states change? Not just when triggers match
   (testing "do not generate orders when trigger matches"
-    (is (empty? (:orders (dawn/-execute-state
+    (is (empty? (:orders (dawn/-evaluate-triggers
                           {}
                           {:trigger [{:when true}]
-                           :orders  [{:tag "test"}]})))))
-  
-  (testing "generate orders when no trigger matches"
-    (is (= {"test" {:tag "test"}}
-           (:orders (dawn/-execute-state
-                      {}
-                      {:trigger [{:when false}]
-                       :orders  [{:tag "test"}]}))))))
+                           :orders  [{:tag "test"}]}))))))
 
 (deftest apply-state-test
   (testing "does not abort when state doesn't do anything"
@@ -161,7 +154,8 @@
                                                                          :data {:a 2}}]})]
         (is (not (reduced? result)))
         (is (= {:data   {:a 2}
-                :current-state "foo"}
+                :current-state "foo"
+                :orders {}}
                result))))
   
     (testing "triggers that change state abort the reduction"
@@ -172,8 +166,9 @@
         (is (reduced? result))
         (is (= {:data          {:a 2}
                 :messages [{:category :info :text "Transitioning state to: bar"}]
-                :current-state "bar"}
+                :current-state "bar"
+                :orders {}}
                (update (unreduced result) :messages (partial mapv #(dissoc % :time)))))))))
 
-(deftest execute-test
+(deftest execution-pass-test
   (testing ""))

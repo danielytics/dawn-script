@@ -5,6 +5,8 @@
             [dawn.types :as types]))
 
 (defn -eval
+  "Evaluate a value in a given context. If the value is a literal value, then it is returned
+   unchanged. If the value is a formula, then the formula is evaluated with the given context."
   [context value]
   (if (types/formula? value)
     (try+
@@ -18,6 +20,7 @@
     value))
 
 (defn -generate-binding-combos
+  "Generate a sequence of all combinations of bindings."
   [var-bindings]
   (reduce
     (fn [accum [k next]]
@@ -28,11 +31,13 @@
    var-bindings))
 
 (defn -make-kv-evaluator
+  "Return a function which will evaluate every value in the provided context for every value in a map."
   [context]
   (fn [[key value]]
     [key (-eval context value)]))
 
 (defn -kv-evaluate
+  "Take a map kv and a context and return a new map which is a copy of kv with all of the values evaluated if they are formulas."
   [context kv]
   (let [kv-eval (-make-kv-evaluator context)]
     (->> kv
@@ -65,27 +70,15 @@
          (map (fn [[k v]] [k (reduce merge v)]))
          (into {}))))
 
-(defn -order->effect
-  [context order]
-  (let [order-status (get-in context [:all-orders (:tag order) :status])
-        order (update order :contracts (fnil long 0))]
-    (cond
-      (not= order-status "open")
-      (assoc order :effect/name :place-order)
-      
-      (= order-status "open")
-      {:effect/name :edit-order
-       :tag         (:tag order)
-       :price       (:price order)
-       :contracts   (:contracts order)})))
-
 (defn -check-trigger-fn
+  "Return a function which checks if the 'when' parameter of a trigger evaluates to true."
   [context]
   (fn [{condition :when :as trigger}]
     (when (-eval context condition)
       (dissoc trigger :condition))))
 
 (defn -add-message
+  "Add a message to the message log."
   [context category message]
   (let [category-kw (keyword category)]
     (if (contains? #{:warning :error :info :note :order} category-kw)
@@ -104,6 +97,7 @@
     context))
 
 (defn -process-trigger-action
+  "Apply a triggers resulting actions to the context."
   [context trigger-action]
   (let [new-state (-eval context (:to-state trigger-action))]
     ; Need to retract orders here by creating actions
@@ -115,16 +109,22 @@
                                         :text (str "Transitioning state to: " new-state)})))))
 
 (defn -process-orders
+  "Generate a map of tag->orders and add it to the context."
   [context orders]
   (let [orders (-evaluate-orders context orders)]
-    (println "Orders:" orders)
     (update context :orders (partial merge-with merge) orders)))
 
-(defn -execute-state
+(defn -evaluate-triggers
+  "Test and apply triggers to the context."
   [context state]
-  (if-let [trigger-action (some (-check-trigger-fn context) (:trigger state))]
-    (-process-trigger-action context trigger-action) 
-    (-process-orders context (:orders state))))
+  (let [check-trigger (-check-trigger-fn context)]
+    (reduce
+      (fn [context trigger]
+        (if (check-trigger trigger)
+          (-process-trigger-action context trigger)
+          context))
+      context
+      (:trigger state))))
 
 (defn -check-state-change
   "Check if a state transition has been triggered, abort reduct
@@ -135,14 +135,19 @@ ion if so"
     context))
 
 (defn -apply-state
+  "Apply the actions of a single state to the context."
   [context state]
   (-> context
       (-eval-message (:note state))
       (update :data merge (-kv-evaluate context (:data state)))
-      (-execute-state state)
+      (-evaluate-triggers state)
+      (-process-orders (:orders state))
       (-check-state-change (:current-state context))))
 
 (defn -execution-pass
+  "Perform one execution pass. If a new state has been entered, apply each parent state before applying the new state.
+   If this is not a new state, then apply the current state.
+   Applying a state consists of evaluating the orders and then evaluating the triggers. New states also setup data before this."
   [context states {:keys [key] :as state}]
   (if (:new-state? context)
     (let [num-common (->> (get-in states [(:previous-state context) :key])
@@ -163,13 +168,15 @@ ion if so"
                                      (map (comp :orders #(get states %)))
                                      (reduce -process-orders context)))))
     ; If not a new state, simply execute the current state
-    (-execute-state
+    (-evaluate-triggers
       (->> key
            (map (comp :orders #(get states %)))
            (reduce -process-orders context))
       state)))
 
 (defn -run-execution-loop
+  "Run the execution loop by applying the current state to the context and repeating this as long as the state has changed to a new state.
+   Detects loops to ensure that it will return."
   [initial-state states context]
   (loop [visited-states #{initial-state}
           context         context]
@@ -187,7 +194,8 @@ ion if so"
         context))))
 
 (defn execute
-    [{:keys [initial-data states-by-id]} {:keys [inputs config account exchange data]}]
+  "Construct a context map from a given strategy, data, configuration and inputs, then runs the execution loop against this context."
+  [{:keys [initial-data states-by-id]} {:keys [inputs config account exchange data event]}]
   (let [static-data    {:static {:inputs   inputs
                                  :config   config
                                  :account  account
