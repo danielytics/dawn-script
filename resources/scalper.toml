@@ -1,0 +1,161 @@
+name = "Manual Scalper"
+description = "Scalper for semi-manual trading"
+
+[[config]]
+    name = "entry-size"
+    label = "Entry Size"
+    type = "number"
+    default = 0
+[[config]]
+    name = "stop-default-offset"
+    label = "Stop Default Offset"
+    type = "price"
+    default = 1
+[[config]]
+    name = "stop-move-amount"
+    label = "Stop Move Amount"
+    type = "price"
+    default = 1
+[[config]]
+    name = "take-profit-prices"
+    label = "Take Profit Prices"
+    type = "list"
+    [[config.list-value]]
+        label = "First TP"
+        type = "percent"
+        default = 0
+    [[config.list-value]]
+        label = "Second TP"
+        type = "percent"
+        default = 0
+    [[config.list-value]]
+        label = "Third TP"
+        type = "percent"
+        default = 0
+[[config]]
+    name = "take-profit-sizes"
+    label = "Take Profit Sizes"
+    type = "list"
+    [[config.list-value]]
+        label = "First TP"
+        type = "percent"
+        default = 0
+    [[config.list-value]]
+        label = "Second TP"
+        type = "percent"
+        default = 0
+
+[inputs]
+    enter-long = { type = "alert" }
+    enter-short = { type = "alert" }
+    exit = { type = "alert" }
+    move-stop-up = { type = "alert" }
+    move-stop-down = { type = "alert" }
+
+[data]
+    take-profit-amounts = "=> [config.take-proconfig.take-profit-sizesfit-sizes.0, config.take-profit-sizes.1, 1.0]"
+    stop-offset = 0
+
+[states]
+    initial = "base"
+
+    [[states.state]]
+        id = "base"
+
+        data.stop-offset = "=> config.top-default-offset"
+
+        [[states.state.trigger]]
+            when = "=> inputs.enter-long"
+            to-state = "enter-long"
+        
+        [[states.state.trigger]]
+            when = "=> inputs.enter-short"
+            to-state = "enter-short"
+        
+        [[states.state.trigger]]
+            when = "=> inputs.exit"
+            to-state = "base"
+        
+        [[states.state.trigger]]
+            when = "=> inputs.move-stop-up"
+            data.stop-offset = "=> #stop-offset + config.stop-move-amount"
+        
+        [[states.state.trigger]]
+            when = "=> inputs.move-stop-down"
+            data.stop-offset = "=> #stop-offset - config.stop-move-amount"
+    
+    [[states.state]]
+        id = "enter-long"
+        parent = "base"
+
+        [[states.state.order]]
+            tag = "=> 'long-entry"
+            type = "market"
+            side = "buy"
+            contracts = "=> config.entry-size"
+            [states.state.orders.on.fill]
+                to-state = "long/in-position"
+
+    [[states.state]]
+        id = "enter-short"
+        parent = "base"
+
+        [[states.state.order]]
+            tag = "short-entry"
+            type = "market"
+            side = "sell"
+            contracts = "=> config.entry-size"
+            [states.state.orders.on.fill]
+                to-state = "short/in-position"
+    
+    [[states.state]]
+        id = "long/in-position"
+        parent = "base"
+
+        [[states.state.trigger]]
+            when = "=> account.position == 0"
+            to-state = "base"
+
+        [[states.state.order]]
+            tag = "stop"
+            type = "stop"
+            side = "sell"
+            contracts = "=> [Math.abs: account.position]"
+            trigger-price = "=> account.dca-price - #stop-offset"
+            exec = ['close']
+            on.trigger.to-state = "base"
+        
+        [[states.state.order]]
+            foreach.tp = "=> [range: 3]"
+            tag = "tp/#tp"
+            type = "limit"
+            side = "sell"
+            contracts = "=> [Math.abs: #take-profit-amounts.(#tp) * account.position]"
+            price = "=> account.dca-price + config.take-profit-prices.(#tp)""
+            exec = ['reduce-only', 'post-only']
+        
+    [[states.state]]
+        id = "short/in-position"
+        parent = "base"
+
+        [[states.state.trigger]]
+            when = "=> account.position == 0"
+            to-state = "base"
+
+        [[states.state.order]]
+            tag = "stop"
+            type = "stop"
+            side = "buy"
+            contracts = "=> [Math.abs: account.position]"
+            trigger-price = "=> account.dca-price + #stop-offset"
+            exec = ['close']
+            on.trigger.to-state = "base"
+        
+        [[states.state.order]]
+            foreach.tp = "=> [range: 3]"
+            tag = "tp/#tp"
+            type = "limit"
+            side = "buy"
+            contracts = "=> [Math.abs: #take-profit-amounts.(#tp) * account.position]"
+            price = "=> account.dca-price - config.take-profit-prices.(#tp)""
+            exec = ['reduce-only', 'post-only']

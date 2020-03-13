@@ -47,6 +47,9 @@
   [file]
   (load-string (slurp file)))
 
+#_(clojure.pprint/pprint
+ (:config (load-file "resources/strategy.toml")))
+
 (defn execute
   "Execute an instance of a strategy. If :data is {}, a new instance is generated."
   [strategy instance]

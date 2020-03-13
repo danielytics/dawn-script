@@ -41,7 +41,7 @@ description = "Strategy to test the dawn scripting engine"
         [[states.state.trigger]]
             when = "=> #counter < 2"
             data.counter = "=> #counter + 1"
-            note.text = "=> [text: ['Counter = ', #counter]]"
+            note.text = "=> [text: 'Counter = ', #counter]"
             to-state = "end"
     
     [[states.state]]
