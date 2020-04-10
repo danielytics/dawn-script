@@ -96,7 +96,7 @@
       data.var1 = 2
       data.var2 = 10
       data.counter = \"=> #counter + 1\"
-      note.text = \"=> [text: ['Var1:', #var1, ' Counter:', #counter]]\"
+      note.text = \"=> [text: 'Var1:', #var1, ' Counter:', #counter]\"
       [[states.state.trigger]]
         when = \"=> #counter < 3\"
         to-state = \"end-state\"
@@ -105,7 +105,7 @@
         to-state = \"child1\"
     [[states.state]]
       id = \"end-state\"
-      note.text = \"=> [text: ['Var1:', #var1, ' Counter:', #counter]]\"
+      note.text = \"=> [text: 'Var1:', #var1, ' Counter:', #counter]\"
     [[states.state]]
       id = \"parent\"
       data.var3 = 15
@@ -222,4 +222,15 @@
     (testing "parent data is available in trigger"
       (is (= {:dawn/state "end-state"
               :dawn/orders #{}}
+             (:data (dawn/execute strategy instance)))))))
+
+(deftest text-builtin-function-test
+  (let [strategy (dawn/load-string "data.a = \"=> [text: 'a', 'b', 'c']\"
+                                    data.b = \"=> [min: 8, 4, 6]\"")
+        instance (make-instance {})]
+    (testing "parent data is available in trigger"
+      (is (= {:dawn/state nil
+              :dawn/orders #{}
+              :a "abc"
+              :b 4}
              (:data (dawn/execute strategy instance)))))))

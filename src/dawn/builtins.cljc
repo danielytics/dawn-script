@@ -28,14 +28,14 @@
   ; Core is always merged into context and always un-namespaced. Other libraries are merged in on demand and are namespaced.
   {:Core {:max     {:doc    {:text   "Return the maximum value of its inputs"
                              :params ["a" "b"]}
-                    :params [:number :number]
+                    :params [:varargs]
                     :return :number
-                    :fn     max}
+                    :fn     #(apply max %)}
           :min     {:doc    {:text   "Return the minimum value of its inputs"
                              :params ["a" "b"]}
-                    :params [:number :number]
+                    :params [:varargs]
                     :return :number
-                    :fn     min}
+                    :fn     #(apply min %)}
           :apply   {:doc    {:text   "Apply function to list of arguments"
                              :params ["function" "arguments"]}
                     :params [:context :any :list]
@@ -43,12 +43,12 @@
                     :fn     core-lib/apply}
           :text    {:doc    {:text   "Join a list of variables together as text"
                              :params ["list"]}
-                    :params [:list]
+                    :params [:varargs]
                     :return :text
                     :fn     #(apply str %)}
           :format  {:doc    {:text   "Join a list of variables together as formatted text"
                              :params ["format" "list"]}
-                    :params [:text :list]
+                    :params [:text :varargs]
                     :return :text
                     :fn     #(apply format %1 %2)}
           :doctext {:doc    {:text   "Returns the documentation text for a function"

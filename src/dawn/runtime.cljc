@@ -188,7 +188,8 @@ ion if so"
 
 (defn execute
     [{:keys [initial-data states-by-id]} {:keys [inputs config account exchange data]}]
-  (let [static-data    {:static {:inputs   inputs
+  (let [static-data    {:libs builtins/libraries
+                        :static {:inputs   inputs
                                  :config   config
                                  :account  account
                                  :exchange exchange}}
@@ -198,8 +199,7 @@ ion if so"
         initial-state  (or previous-state current-state)
         context        (merge
                         static-data
-                        {:libs           builtins/libraries
-                         :messages       []
+                        {:messages       []
                          :actions        []
                          :previous-state previous-state
                          :current-state  current-state
