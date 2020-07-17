@@ -3,23 +3,28 @@
             [slingshot.slingshot :refer [throw+ try+]]
             [dawn.types :as types]))
 
+(defn rearange-vararg-params [params expected-count]  
+  (conj (vec (take (dec expected-count) params)) (subvec params (dec expected-count))))
+
 (defn -call-function
   [context func-obj parameters]
-  (when (types/fn-ref? func-obj)
+  (when (types/fn-ref? func-obj)    
     (when-let [func (get-in (:libs context) (types/path func-obj))]
       (let [expected-params (:params func)
-            with-context? (= (first expected-params) :context)]
-        (if (= (count parameters)
-               ((if with-context? dec identity) (count expected-params)))
+            with-context? (= (first expected-params) :context)
+            expected-count ((if with-context? dec identity) (count expected-params))
+            params (if (= (last expected-params) :varargs) (rearange-vararg-params (vec parameters) expected-count) parameters)]
+        (if (= (count params)
+               expected-count)
           (if with-context?
-            (apply (:fn func) context parameters)
-            (apply (:fn func) parameters))
+            (apply (:fn func) context params)
+            (apply (:fn func) params))
           (throw+ {:error ::call
                    :type :bad-arguments
                    :function (dissoc func :fn)
-                   :parameters parameters
+                   :parameters params
                    :lib (types/lib func-obj)
-                   :message (str "Invalid number of arguments. Expected " (count (:params func)) " got " (count parameters))}))))))
+                   :message (str "Invalid number of arguments. Expected " (count (:params func)) " got " (count params))}))))))
 
 (defn in?
   "true if coll contains elem"

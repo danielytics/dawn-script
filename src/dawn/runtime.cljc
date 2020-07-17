@@ -196,7 +196,8 @@ ion if so"
 (defn execute
   "Construct a context map from a given strategy, data, configuration and inputs, then runs the execution loop against this context."
   [{:keys [initial-data states-by-id]} {:keys [inputs config account exchange data event]}]
-  (let [static-data    {:static {:inputs   inputs
+  (let [static-data    {:libs builtins/libraries
+                        :static {:inputs   inputs
                                  :config   config
                                  :account  account
                                  :exchange exchange}}
@@ -206,8 +207,7 @@ ion if so"
         initial-state  (or previous-state current-state)
         context        (merge
                         static-data
-                        {:libs           builtins/libraries
-                         :messages       []
+                        {:messages       []
                          :actions        []
                          :previous-state previous-state
                          :current-state  current-state
