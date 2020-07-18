@@ -7,7 +7,7 @@
   (conj (vec (take (dec expected-count) params)) (subvec params (dec expected-count))))
 
 (defn -call-function
-  [context func-obj parameters]
+  [context node func-obj parameters]
   (when (types/fn-ref? func-obj)    
     (when-let [func (get-in (:libs context) (types/path func-obj))]
       (let [expected-params (:params func)
@@ -24,6 +24,7 @@
                    :function (dissoc func :fn)
                    :parameters params
                    :lib (types/lib func-obj)
+                   :metadata (meta node)
                    :message (str "Invalid number of arguments. Expected " (count (:params func)) " got " (count params))}))))))
 
 (defn in?
@@ -82,7 +83,7 @@
       value
       (throw+ {:error ::var
                :type :undefined
-               :variable var-name
+               :variable (name var-name)
                :variable-type var-type
                :metadata (meta node)
                :message (str "Could not read undefined variable '" (when (= var-type :dynamic) "#") (name var-name) "'")}))))
@@ -114,6 +115,12 @@
     ; Binary operators
       :binary-op (let [lhs (evaluate context (second args))
                        rhs (evaluate context (second (next args)))]
+                   (when (and (= value :/)
+                              (zero? rhs))
+                     (throw+ {:error ::arithmetic
+                              :type :divide-by-zero
+                              :metadata (meta node)
+                              :message "Attempt to divide by zero"}))
                    ((get binary-operators value) lhs rhs))
     ; Ternary
       :ternary-expression (evaluate context (if (evaluate context value)
@@ -122,8 +129,9 @@
     ; Function calls
       :call (let [func-obj   (evaluate context value)
                   parameters (map #(evaluate context %) (second args))]
-              (-call-function context func-obj parameters)))
+              (-call-function context node func-obj parameters)))
 (catch Exception e
+  ; TODO: Send to datadog
   (println "Evaluation error in:" node-type args)
   (println "Metadata:" (meta node))
   (println "Exception:" e)

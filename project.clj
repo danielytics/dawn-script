@@ -10,5 +10,6 @@
                  [com.taoensso/timbre "4.10.0"]]
   :repl-options {:init-ns dawn.core}
   :main dawn.core
-  :profiles {:dev {:plugins [[com.jakemccrary/lein-test-refresh "0.24.1"]]}})
+  :profiles {:dev {:dependencies [[walmartlabs/datascope "0.1.1"]]
+                   :plugins [[com.jakemccrary/lein-test-refresh "0.24.1"]]}})
   

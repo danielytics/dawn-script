@@ -2,6 +2,9 @@
   (:refer-clojure :exclude [load-string load-file])
   (:require [clojure.string :as string]
             [slingshot.slingshot :refer [throw+ try+]]
+            [clojure.pprint :refer [pprint]]
+            [com.walmartlabs.datascope :as scope]
+            [rhizome.viz :as viz]
             [dawn.parser :as parser]
             [dawn.runtime :as runtime]))
 
@@ -30,12 +33,6 @@
 
 ;(find-libraries {:vars {:static #{:foo :Bar :QUUX}}})
 
-#_
-(clojure.pprint/pprint
- (get-in
-  (prepare-states (load-toml (make-parser) (slurp "resources/strategy.toml")))
-  ["not-in-position" :orders 0]))
-
 (defn load-string
   "Loads a TOML string to create a strategy ready for execution."
   [source]
@@ -47,17 +44,29 @@
   [file]
   (load-string (slurp file)))
 
+(defn debug
+  ([data] (debug :pprint data))
+  ([how data]
+   (case how
+     :pprint (clojure.pprint/pprint data)
+     :print (println data)
+     :print-str (println (str data))
+     :str (str data)
+     :view (scope/view data)
+     :image (-> data scope/dot viz/dot->image (viz/save-image "debug.png")))))
+
+;(debug :pprint (load-file "resources/strategy.toml"))
+#_
+(debug :print-str (get-in
+                   (load-file "resources/test_strategy.toml")
+                   [:states-by-id "start" :trigger 0 :note :text]))
+
 #_(clojure.pprint/pprint
  (:config (load-file "resources/strategy.toml")))
 
-(defn execute
-  "Execute an instance of a strategy. If :data is {}, a new instance is generated."
-  [strategy instance]
-  (runtime/execute strategy instance))
-
-(defn friendly-path
+(defn -friendly-path
   [strategy path]
-  (->> path         
+  (->> path
        (reduce (fn [[path object] key]
                  (let [object (get object key)
                        key    (if (number? key)
@@ -70,10 +79,34 @@
        (first)
        (string/join ".")))
 
-#_(into
-   {:x      15
-    :status (into {} (map (fn [k] [(keyword k) true]) (get-in strategy [:inputs :status :fields])))}
-   (map (fn [k] [k 10]) (keys (dissoc (:inputs strategy) :status))))
+(defn execute
+  "Execute an instance of a strategy. If :data is {}, a new instance is generated."
+  [strategy instance]
+  (try+
+   (let [{:keys [actions messages data]} (runtime/execute strategy instance)]
+     {:type :result
+      :result {:actions actions
+               :messages messages
+               :data data}})
+   (catch Object e
+     (let [start-index (get-in e [:metadata :instaparse.gll/start-index] 0)
+           end-index (get-in e [:metadata :instaparse.gll/end-index] (count (:source e)))]
+
+       {:type :error
+        :error {:message (:message e)
+                :details (if (instance? Exception e)
+                           e
+                           (assoc
+                            (select-keys e [:type :variable :variable-type :function :parameters :lib])
+                            :what (:error e)
+                            :path (:object-path e)))
+                :path (-friendly-path strategy (get e :object-path []))
+                :source {:raw (:source e)
+                         :index [start-index end-index]
+                         :highlight (str (:source e) "\n"
+                                         (string/join "" (repeat start-index " "))
+                                         (string/join "" (repeat (- end-index start-index) "^")))}}}))))
+
 
 (let [strategy (load-file "resources/test_strategy.toml")
       instance {:inputs   {:in1 0
@@ -83,38 +116,26 @@
                 :config   {:order-sizes          [10 10 10 10]
                            :tp-trail-threshold   100
                            :trailing-stop-offset 10}
-                :exchange {:candle    {:open   100
-                                       :high   110
-                                       :low    90
-                                       :close  105
-                                       :volume 1000}
-                           :orderbook {:price  {:ask 110
-                                                :bid 100}
-                                       :volume {:ask 1000
-                                                :bid 100}}}
                 :orders   {}
                 :data     {}}]
-  (try+
-   (loop [instance instance
-          counter  2]
-     (println)
-     (println "Executing...")
-     (let [{:keys [actions messages data]} (execute strategy instance)]
-       (println "Actions:")
-       (clojure.pprint/pprint actions)
-       (println "Messages:")
-       (clojure.pprint/pprint messages)
-       (if (pos? counter)
-         (recur (assoc instance :data data) (dec counter))
-         (do
-           (println)
-           (println "Final Data:")
-           (clojure.pprint/pprint data)))))
-   (catch Object e 
-     (println "ERROR:" e)
-     (println (:message e))
-     (println "In:" (friendly-path strategy (:object-path e)))
-     (println (:source e))
-     (print (string/join "" (repeat (get-in e [:metadata :instaparse.gll/start-index]) " ")))
-     (println (string/join "" (repeat (- (get-in e [:metadata :instaparse.gll/end-index])
-                                         (get-in e [:metadata :instaparse.gll/start-index])) "^"))))))
+  (loop [instance instance
+         counter 2]
+    (let [retval (execute strategy instance)]
+      (case (:type retval)
+        :result (let [{:keys [actions messages data]} (:result retval)]
+                  (println "Actions:")
+                  (pprint actions)
+                  (println "Messages:")
+                  (pprint messages)
+                  (if (pos? counter)
+                    (recur (assoc instance :data data) (dec counter))
+                    (do
+                      (println)
+                      (println "Final Data:")
+                      (pprint data))))
+        :error  (let [{:keys [details message source path] :as error} (:error retval)]
+                  (debug :pprint error)
+                  (println "ERROR:" details)
+                  (println message)
+                  (println "In:" path)
+                  (println (:highlight source)))))))

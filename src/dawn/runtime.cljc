@@ -195,12 +195,11 @@ ion if so"
 
 (defn execute
   "Construct a context map from a given strategy, data, configuration and inputs, then runs the execution loop against this context."
-  [{:keys [initial-data states-by-id]} {:keys [inputs config account exchange data event]}]
+  [{:keys [initial-data states-by-id]} {:keys [inputs config account data event]}]
   (let [static-data    {:libs builtins/libraries
                         :static {:inputs   inputs
                                  :config   config
-                                 :account  account
-                                 :exchange exchange}}
+                                 :account  account}}
         previous-state (:dawn/state data)
         data           (if previous-state data (-kv-evaluate static-data initial-data))
         current-state  (:dawn/state data)

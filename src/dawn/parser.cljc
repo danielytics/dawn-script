@@ -53,19 +53,36 @@
            :call-expression   (fn [func-name & args] [:call func-name (vec args) {}])}))))
 
 (defn -find-variables
-  "Search the AST for variables by searching the tree for :dynamic-var and :static-var nodes"
+  "Search the AST for dynamic variables by searching the tree for :dynamic-var nodes"
   [ast]
   (->> ast
        ; Tree seq performs a depth-first search and returns a sequence of nodes
        (tree-seq #(or (vector? %)
                       (map? %))
                  identity)
-       ; The nodes we're looking for are in format [type identifier], so we only keep vectors
-       (filter vector?)
-       ; Only keep the vectors where 'type' is one we're interested in
-       (filter #(contains? #{:dynamic-var :static-var} (first %)))
-       ; Group by 'type', returning a map where the keys are the type and value are a list of nodes
-       (group-by first)))
+       ; The nodes we're looking for are in format [:dynamic-var identifier], so we only keep vectors
+       (filter #(and (vector? %)
+                     (= (first %) :dynamic-var)))
+       (map second)
+       (set)))
+
+(defn -find-statics
+  "Search the AST for static variables by searcing the truu for :static-lookup nodes"
+  [ast]
+  (->> ast
+       ; Tree seq performs a depth-first search and returns a sequence of nodes
+       (tree-seq #(or (vector? %)
+                      (map? %))
+                 identity)
+       ; The nodes we're looking for are in format [:static-lookuep [:static-var identifier] args], so we only keep vectors
+       (filter #(and (vector? %)
+                     (= (first %) :static-lookup)))
+       (map (fn [[_ [node-type key] [sub-key & _]]]
+              (when (= node-type :static-var)
+                (when sub-key
+                  (keyword (name key) (name sub-key))))))
+       (remove nil?)
+       (set)))
 
 (defn -get-identifiers
   [[node-type & identifiers]]
@@ -96,15 +113,24 @@
    {}
    functions))
 
+(defn -remove-functions
+  [static-vars functions]
+  (->> (for [[lib items] functions
+             [func _] items]
+         (keyword (name lib) (name func)))
+       (apply disj static-vars)))
+
 (defn -capture-variables
   "Search the AST for variable references and return them in sets (separating static and dynamic variables)"
   [ast]
-  (let [{:keys [static-var dynamic-var]} (-find-variables ast)
-        functions (-find-functions ast)]
-    ; Take only the identifiers and convert each list into a set
-    {:static    (set (map second static-var))
-     :dynamic   (set (map second dynamic-var))
-     :functions (-make-functions-vars functions)}))
+  (let [static-vars (-find-statics ast)
+        dynamic-vars (-find-variables ast)
+        functions (-> ast
+                      (-find-functions)
+                      (-make-functions-vars))]
+    {:static    (-remove-functions static-vars functions)
+     :dynamic   dynamic-vars
+     :functions functions}))
 
 
 (declare ^:dynamic parse-errors)
