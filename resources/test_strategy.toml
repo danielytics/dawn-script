@@ -47,3 +47,10 @@ description = "Strategy to test the dawn scripting engine"
     [[states.state]]
         id = "end"
         note.text = "=> #counter"
+
+        [[states.state.orders]]
+            tag         = "order"
+            type        = "market"
+            side        = "buy"
+            contracts   = 100
+            on.fill.note.text = "Filled"

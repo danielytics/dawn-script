@@ -67,7 +67,9 @@
           [])
          (remove nil?)
          (group-by :tag)
+         ; If more than one order per tag, merge them into one
          (map (fn [[k v]] [k (reduce merge v)]))
+         ; Return a tag->order map
          (into {}))))
 
 (defn -check-trigger-fn
@@ -127,8 +129,7 @@
       (:trigger state))))
 
 (defn -check-state-change
-  "Check if a state transition has been triggered, abort reduct
-ion if so"
+  "Check if a state transition has been triggered, abort reduction if so"
   [{:keys [current-state] :as context} previous-state]
   (if (not= current-state previous-state)
     (reduced context)
@@ -150,13 +151,17 @@ ion if so"
    Applying a state consists of evaluating the orders and then evaluating the triggers. New states also setup data before this."
   [context states {:keys [key] :as state}]
   (if (:new-state? context)
-    (let [num-common (->> (get-in states [(:previous-state context) :key])
-                          (map vector key)
-                          (take-while #(apply = %))
-                          (count))
-          context    (-> context
-                         (update :data select-keys (:variables state))
-                         (assoc :orders {}))]
+    (let [num-common    (->> (get-in states [(:previous-state context) :key])
+                             (map vector key)
+                             (take-while #(apply = %))
+                             (count))
+          context       (-> context
+                            (update :data select-keys (:variables state))
+                            (assoc :orders {}))
+          ; Get all of the orders for the in-common states
+          common-orders (->> (take num-common key)
+                             (map (comp :orders #(get states %)))
+                             (reduce -process-orders context))]
       (->> key
            ; Find the number of common parent keys (if any) and drop them
            (drop num-common)
@@ -164,9 +169,7 @@ ion if so"
            (map #(get states %))
            ; Apply each not-in-common parent state to context in turn
            ; The current state is always at the end of the key, so will be applied also
-           (reduce -apply-state (->> (take num-common key)
-                                     (map (comp :orders #(get states %)))
-                                     (reduce -process-orders context)))))
+           (reduce -apply-state common-orders)))
     ; If not a new state, simply execute the current state
     (-evaluate-triggers
       (->> key
@@ -180,12 +183,12 @@ ion if so"
   [initial-state states context]
   (loop [visited-states #{initial-state}
           context         context]
-    (let [current-state                  (:current-state context)
-          context                        (-> context
-                                             (-add-message :info (str "Executing state: " current-state))
-                                             (-execution-pass states (get states current-state))
-                                             (assoc :previous-state current-state))
-          next-state                  (:current-state context)]
+    (let [current-state (:current-state context)
+          context       (-> context
+                            (-add-message :info (str "Executing state: " current-state))
+                            (-execution-pass states (get states current-state))
+                            (assoc :previous-state current-state))
+          next-state    (:current-state context)]
       (if (not= next-state current-state)
         (if (contains? visited-states next-state)
           (-add-message context :warning (str "Loop detected: " initial-state " -> ... -> " current-state " -> " next-state))
@@ -195,7 +198,7 @@ ion if so"
 
 (defn execute
   "Construct a context map from a given strategy, data, configuration and inputs, then runs the execution loop against this context."
-  [{:keys [initial-data states-by-id]} {:keys [inputs config account data event]}]
+  [{:keys [initial-data states]} {:keys [inputs config account data event]}]
   (let [static-data    {:libs builtins/libraries
                         :static {:inputs   inputs
                                  :config   config
@@ -207,13 +210,13 @@ ion if so"
         context        (merge
                         static-data
                         {:messages       []
-                         :actions        []
                          :previous-state previous-state
                          :current-state  current-state
                          :new-state?     (not= previous-state current-state)
                          :data           (dissoc data :dawn/state)})
-        results        (-run-execution-loop initial-state states-by-id context)]
+        results        (-run-execution-loop initial-state states context)]
     (-> results
-        (select-keys [:actions :messages :data])
+        (select-keys [:messages :data :orders])
+        (update :orders (comp vec vals))
         (assoc-in [:data :dawn/state] (:current-state results))
         (assoc-in [:data :dawn/orders] (set (keys (:orders results)))))))

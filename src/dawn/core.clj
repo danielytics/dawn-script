@@ -59,39 +59,23 @@
 #_
 (debug :print-str (get-in
                    (load-file "resources/test_strategy.toml")
-                   [:states-by-id "start" :trigger 0 :note :text]))
+                   [:states "start" :trigger 0 :note :text]))
 
 #_(clojure.pprint/pprint
  (:config (load-file "resources/strategy.toml")))
-
-(defn -friendly-path
-  [strategy path]
-  (->> path
-       (reduce (fn [[path object] key]
-                 (let [object (get object key)
-                       key    (if (number? key)
-                                (if (contains? object :id)
-                                  (:id object)
-                                  key)
-                                (name key))]
-                   [(conj path key) object]))
-               [[] strategy])
-       (first)
-       (string/join ".")))
 
 (defn execute
   "Execute an instance of a strategy. If :data is {}, a new instance is generated."
   [strategy instance]
   (try+
-   (let [{:keys [actions messages data]} (runtime/execute strategy instance)]
+   (let [{:keys [orders messages data]} (runtime/execute strategy instance)]
      {:type :result
-      :result {:actions actions
+      :result {:orders orders
                :messages messages
                :data data}})
    (catch Object e
      (let [start-index (get-in e [:metadata :instaparse.gll/start-index] 0)
            end-index (get-in e [:metadata :instaparse.gll/end-index] (count (:source e)))]
-
        {:type :error
         :error {:message (:message e)
                 :details (if (instance? Exception e)
@@ -99,8 +83,8 @@
                            (assoc
                             (select-keys e [:type :variable :variable-type :function :parameters :lib])
                             :what (:error e)
-                            :path (:object-path e)))
-                :path (-friendly-path strategy (get e :object-path []))
+                            :path (get-in e [:object-path :keys])))
+                :path  (get-in e [:object-path :human])
                 :source {:raw (:source e)
                          :index [start-index end-index]
                          :highlight (str (:source e) "\n"
@@ -118,13 +102,16 @@
                            :trailing-stop-offset 10}
                 :orders   {}
                 :data     {}}]
+  ;(pprint strategy)
+  (println "<><><><><>")
   (loop [instance instance
          counter 2]
     (let [retval (execute strategy instance)]
       (case (:type retval)
-        :result (let [{:keys [actions messages data]} (:result retval)]
-                  (println "Actions:")
-                  (pprint actions)
+        :result (let [{:keys [orders messages data] :as foo} (:result retval)]
+                  (println "---")
+                  (println "Orders:")
+                  (pprint orders)
                   (println "Messages:")
                   (pprint messages)
                   (if (pos? counter)

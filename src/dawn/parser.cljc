@@ -133,6 +133,13 @@
      :functions functions}))
 
 
+(defn -update-path
+  "Append new key to path"
+  [path key key-name]
+  (-> path
+      (update :keys conj key)
+      (update :human str "." key-name)))
+
 (declare ^:dynamic parse-errors)
 
 (defmulti to-clj (fn [obj _ _] (type obj)))
@@ -163,8 +170,10 @@
  ;; Root of a TOML data-structure, acts like a map
   [x _ parser]
   (->> (.toMap x)
-       (map (fn [[k v]] (let [k (keyword k)]
-                          [k (to-clj v [k] parser)])))
+       (map (fn [[k v]] (let [key (keyword k)
+                              path {:keys [key]
+                                    :human k}]
+                          [key (to-clj v path parser)])))
        (into {})))
 
 (defmethod to-clj org.tomlj.MutableTomlTable
@@ -172,8 +181,8 @@
   [x path parser]
   (->> (.toMap x)
        (map (fn [[k v]]
-              (let [k (keyword k)]
-                [k (to-clj v (conj path k) parser)])))
+              (let [key (keyword k)]
+                [key (to-clj v (-update-path path key k) parser)])))
        (into {})))
 
 (defmethod to-clj org.tomlj.MutableTomlArray
@@ -181,7 +190,8 @@
   [x path parser]
   (mapv
    (fn [idx v]
-     (to-clj v (conj path idx) parser))
+     (let [id (or (.getString v "id") idx)]
+       (to-clj v (-update-path path idx id) parser)))
    (range)
    (.toList x)))
 
@@ -234,14 +244,13 @@
     (-> {:inputs       inputs
          :config       config
          :initial-data data
-         :states       (assoc raw-states :state states)
          :triggers     triggers
-         :states-by-id (->> states
+         :states       (->> states
                             (group-by :id)
                             (map (fn [[k v]] [k (first v)]))
                             (into {}))}
         (assoc-in [:initial-data :dawn/state] (:initial raw-states))
-        (update :states-by-id -preprocess-states (set (keys data))))))
+        (update :states -preprocess-states (set (keys data))))))
 
 (defn load-toml
   "Take a parser function and source string and convert source string into a tree structure"

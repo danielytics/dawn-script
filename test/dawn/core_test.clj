@@ -60,7 +60,7 @@
 
 
 (defn make-instance
-  [{:keys [inputs account config candle orderbook]}]
+  [{:keys [inputs account config]}]
   {:inputs (merge {:in1 0
                    :in2 1}
                   inputs)
@@ -70,17 +70,6 @@
    :config (merge {:con1 10
                    :counter-start 1}
                   config)
-   :exchange {:candle (merge {:open 100
-                              :high 110
-                              :low 90
-                              :close 105
-                              :volume 1000}
-                             candle)
-              :orderbook (merge {:paice {:ask 110
-                                         :bid 100}
-                                 :volume {:ask 1000
-                                          :bid 100}}
-                                orderbook)}
    :orders {}
    :data {}})
 
@@ -131,8 +120,7 @@
 (deftest strategy-integration-test
   (let [strategy (dawn/load-string integration-test-source)]
     (testing "execute strategy"
-      (let [result (dawn/execute strategy (make-instance {}))]
-        (println result)
+      (let [result (:result (dawn/execute strategy (make-instance {})))]
         (is (= ["Executing state: start-state"
                 "Var1:1 Counter:1"
                 "Transitioning state to: end-state"
@@ -141,7 +129,7 @@
                (mapv :text (:messages result))))))
     
     (testing "child states"
-      (let [result (dawn/execute strategy (make-instance {:config {:counter-start 4}}))]
+      (let [result (:result (dawn/execute strategy (make-instance {:config {:counter-start 4}})))]
         (is (= ["Executing state: start-state"
                  "Var1:1 Counter:4"
                  "Transitioning state to: child1"
@@ -156,9 +144,11 @@
                (mapv :text (:messages result))))))))
 
 (def order-test-source
-  " [data]
+  "[inputs]
+     candle_close = { type = \"price\" }
+   [data]
       fill-price = 0
-    [states]
+   [states]
       initial = \"not-in-position\"
       [[states.state]]
         id = \"not-in-position\"
@@ -170,7 +160,7 @@
           type = \"limit\"
           side = \"buy\"
           contracts = 100
-          price = \"=> exchange.candle.close + 10\"
+          price = \"=> inputs.candle_close + 10\"
           on.fill.data.fill-price = \"=> event.fill-price\"
           on.fill.to-state = \"in-position\"
       [[states.state]]
@@ -183,8 +173,8 @@
 
 (deftest strategy-order-test
   (let [strategy (dawn/load-string order-test-source)
-        instance (atom (make-instance {}))
-        advance! (fn [& [changes]] (swap! instance #(assoc % :data (:data (dawn/execute strategy (merge-with merge % changes))))))]
+        instance (atom (make-instance {:inputs {:candle_close 10}}))
+        advance! (fn [& [changes]] (swap! instance #(assoc % :data (get-in (dawn/execute strategy (merge-with merge % changes)) [:result :data]))))]
     (testing "creates order"
       (is (= {:fill-price 0
               :dawn/orders #{"test"}
@@ -222,7 +212,7 @@
     (testing "parent data is available in trigger"
       (is (= {:dawn/state "end-state"
               :dawn/orders #{}}
-             (:data (dawn/execute strategy instance)))))))
+             (get-in (dawn/execute strategy instance) [:result :data]))))))
 
 (deftest text-builtin-function-test
   (let [strategy (dawn/load-string "data.a = \"=> [text: 'a', 'b', 'c']\"
@@ -233,4 +223,4 @@
               :dawn/orders #{}
               :a "abc"
               :b 4}
-             (:data (dawn/execute strategy instance)))))))
+             (get-in (dawn/execute strategy instance) [:result :data]))))))
