@@ -1,15 +1,9 @@
 (ns dawn.libs.list)
 
-(defn find
-  [list value]
-  (let [index (->> list
-                   (map-indexed #(vector %1 %2))
-                   (drop-while #(not= (second %) value))
-                   (first)
-                   (first))]
-    (if (nil? index) -1 index)))
-
 (defn zip
+  "Combine the values in a map into a vector of maps:
+   (zip {:a [1 2 3] :b [4 5 6]})
+   => [{:a 1 :b 4} {:a 2 :b 5} {:a 3 :b 6}]"
   [items-map]
   (if (empty? items-map)
     [] 

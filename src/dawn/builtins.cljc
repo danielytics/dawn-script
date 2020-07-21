@@ -1,13 +1,9 @@
 (ns dawn.builtins
   (:require [clojure.string :as string]
-            [slingshot.slingshot :refer [throw+ try+]]
             [clojure.set :as sets]
-            [dawn.types :as types]
             [dawn.libs.core :as core-lib]
             [dawn.libs.math :as math-lib]
-            [dawn.libs.text :as text-lib]
             [dawn.libs.list :as list-lib]
-            [dawn.libs.set :as set-lib]
             [dawn.libs.trades :as trades-lib]))
 
 ; Data types for parameters:
@@ -66,16 +62,16 @@
                         :params [:float]
                         :return :integer
                         :fn     nil}
-          :round       {:doc    {:text   "Round float to nearest integer (ties are rounded towards posivite infinity)"
+          :round       {:doc    {:text   "Round float to nearest integer (ties are rounded away from zero)"
                                  :params ["value"]}
                         :params [:float]
                         :return :integer
-                        :fn     nil}
+                        :fn     #(int (+ % (if (pos? %) 0.5 -0.5)))}
           :truncate    {:doc    {:text   "Truncate float to integer (ignore decimal value)"
                                  :params ["value"]}
                         :params [:float]
                         :return :integer
-                        :fn     nil}
+                        :fn     int}
           :abs         {:doc    {:text   "Return absolute value"
                                  :params ["value"]}
                         :params [:number]
@@ -85,7 +81,7 @@
                                  :params ["value"]}
                         :params [:number]
                         :return :integer
-                        :fn     nil}
+                        :fn     #(cond (neg? %) -1 (pos? %) 1 :else 0)}
           :is-positive {:doc    {:text   "Is the input value positive"
                                  :params ["value"]}
                         :params [:number]
@@ -110,42 +106,37 @@
                                    :params ["text"]}
                           :params [:text]
                           :return :text
-                          :fn     nil}
+                          :fn     string/upper-case}
           :lower-case    {:doc    {:text   "Convert input text to all lower-case"
                                    :params ["text"]}
                           :params [:text]
                           :return :text
-                          :fn     nil}
+                          :fn     string/lower-case}
           :capitalize    {:doc    {:text   "Convert the first character of text to upper-case"
                                    :params ["text"]}
                           :params [:text]
                           :return :text
-                          :fn     nil}
-          :un-capitalize {:doc    {:text   "Convert the first character of text to lower-case"
-                                   :params ["text"]}
-                          :params [:text]
-                          :return :text
-                          :fn     nil}
+                          :fn     string/capitalize}
           :join          {:doc    {:text   "Join a list together into a single text item, sperated by 'seperator'"
                                    :params ["list" "seperator"]}
                           :params [:list :text]
                           :return :text
-                          :fn     nil}
+                          :fn     #(string/join %2 %1)}
           :slice         {:doc    {:text   "Extract a region of the input text"
                                    :params ["text" "first" "length"]}
                           :params [:text :integer :integer]
                           :return :text
-                          :fn     nil}
+                          :fn     #(subs %1 %2 (+ %2 %3))}
           :split         {:doc    {:text   "Split text into a list of text, anywhere pattern is found"
                                    :params ["text" "pattern"]}
                           :params [:text :text]
                           :return :text
-                          :fn     nil}
+                          :fn     #(string/split %1 (re-pattern %2))}
           :find          {:doc    {:text   "Return the index of pattern in input text, or -1 if not found"
                                    :params ["text" "pattern"]}
                           :params [:text :text]
                           :return :integer
-                          :fn     nil}}
+                          :fn     #(.indexOf %1 %2)}}
    :List {:find      {:doc    {:text   "Return the index of value in the list, or -1 if not found"
                                :params ["list" "value"]}
                       :params [:list :any]
@@ -155,7 +146,7 @@
                                :params ["n" "value"]}
                       :params [:integer :any]
                       :return :list
-                      :fn     nil}
+                      :fn     repeat}
           :append    {:doc    {:text   "Append value to the end of list"
                                :params ["list" "value"]}
                       :params [:list :any]
@@ -205,12 +196,12 @@
                                :params ["list" "n" "values"]}
                       :params [:list :integer :value]
                       :return :list
-                      :fn     nil}
+                      :fn     assoc}
           :set-in    {:doc    {:text   "Return the list with the nested element at successive indices in path to value"
                                :params ["list" "path" "value"]}
                       :params [:list :list :any]
                       :return :list
-                      :fn     nil}
+                      :fn     assoc-in}
           :map       {:doc    {:text   "Return the list with function mapped over each value"
                                :params ["list" "function"]}
                       :params [:list :any]
@@ -280,7 +271,12 @@
                                :params ["list"]}
                       :params [:list]
                       :return :list
-                      :fn     nil}}
+                      :fn     nil}
+          :zip       {:doc {:text "Converts a map where all values are lists into a list of maps, where each map has one element taken from each list"
+                            :params ["map"]}
+                      :params [:map]
+                      :return :map
+                      :fn list-lib/zip}}
    :Set  {:union        {:doc    {:text   "Return the set union of two input lists (elements from both 'a' and 'b' without duplicates)"
                                   :params ["a" "b"]}
                          :params [:list :list]

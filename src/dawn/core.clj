@@ -1,10 +1,8 @@
 (ns dawn.core
   (:refer-clojure :exclude [load-string load-file])
   (:require [clojure.string :as string]
-            [slingshot.slingshot :refer [throw+ try+]]
-            [clojure.pprint :refer [pprint]]
-            [com.walmartlabs.datascope :as scope]
-            [rhizome.viz :as viz]
+            [slingshot.slingshot :refer [try+]]
+            [clojure.pprint]
             [dawn.utility :as util]
             [dawn.parser :as parser]
             [dawn.runtime :as runtime]
@@ -35,16 +33,6 @@
   [file]
   (load-string (slurp file)))
 
-(defn debug
-  ([data] (debug :pprint data))
-  ([how data]
-   (case how
-     :pprint (clojure.pprint/pprint data)
-     :print (println data)
-     :print-str (println (str data))
-     :str (str data)
-     :view (scope/view data)
-     :image (-> data scope/dot viz/dot->image (viz/save-image "debug.png")))))
 
 ;(debug :pprint (load-file "resources/strategy.toml"))
 #_(debug :print-str (get-in
