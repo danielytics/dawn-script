@@ -11,44 +11,38 @@
   (path [_] "Gets the path to the function object")
   (lib [_] "Gets the library in which the funciton object resides"))
 
-(deftype FormulaObj [object-path source-code vars ast]
+(defrecord FormulaObj [object-path source-code vars ast]
   Formula
   (keys [_] object-path)
   (source [_] source-code)
   (vars [_] vars)
   (ast [_] ast)
-    ; Make equality work for tests
   Object
-  (toString [_] source-code)
-  (hashCode [_] (.hashCode object-path))
-  (equals [_ other]
-    (and (satisfies? Formula other)
-         (= object-path (keys other)))))
+  (toString [_] (str "`Formula " source-code "`")))
 
-(deftype FunctionVar [fn-path]
+(defrecord FunctionVar [fn-path]
   FuncRef
   (path [_] fn-path)
   (lib [_] (first fn-path))
-  ; Make equality work for tests
   Object
-  (toString [_] (str "[FunctionVar: " fn-path "]"))
-  (hashCode [fn-path] (.hashCode fn-path))
-  (equals [_ other]
-    (and (satisfies? FuncRef other)
-         (= fn-path (path other)))))
+  (toString [_] (str "`Function => " fn-path "`")))
 
 (defn formula
+  "Construct a formula object"
   [{:keys [path vars source ast]}]
   (->FormulaObj path source vars ast))
 
 (defn formula?
+  "Test if a value is a formula object"
   [v]
   (satisfies? Formula v))
 
 (defn fn-ref
+  "Create a function reference object"
   [lib key]
   (->FunctionVar [lib key]))
 
 (defn fn-ref?
+  "Test if a value is a function reference object"
   [v]
   (satisfies? FuncRef v))

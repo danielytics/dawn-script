@@ -7,8 +7,11 @@
                  [instaparse "1.4.10"]
                  [org.tomlj/tomlj "1.0.0"]
                  [slingshot "0.12.2"]
-                 [com.taoensso/timbre "4.10.0"]]
+                 [tick "0.4.26-alpha"]
+                 [com.taoensso/timbre "4.10.0"]
+                 [erinite/utility "0.1.0"]]
   :repl-options {:init-ns dawn.core}
   :main dawn.core
-  :profiles {:dev {:plugins [[com.jakemccrary/lein-test-refresh "0.24.1"]]}})
+  :profiles {:dev {:dependencies [[walmartlabs/datascope "0.1.1"]]
+                   :plugins [[com.jakemccrary/lein-test-refresh "0.24.1"]]}})
   

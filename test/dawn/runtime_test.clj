@@ -36,7 +36,7 @@
          (dawn/-evaluate-order {} {:when      (types/formula {:ast [:binary-op :> [:integer 4] [:integer 5]]})
                                    :contracts (types/formula {:ast [:binary-op :+ [:integer 7] [:integer 3]]})})))))
 
-
+#_
 (deftest order->effect-test
   (testing "new order"
     (let [context {:all-orders {}}
@@ -90,20 +90,20 @@
   (testing "apply triggers when condition matches a constant"
     (is (=  "test"
             (:current-state (dawn/-evaluate-triggers {} {:trigger [{:when     true
-                                                                :to-state "test"}]})))))
+                                                                    :to-state "test"}]})))))
   
   (testing "apply triggers when condition matches a formula"
     (is (=  "test"
             (:current-state (dawn/-evaluate-triggers {} {:trigger [{:when     (types/formula {:ast [:binary-op :> [:integer 10] [:integer 1]]})
-                                                                :to-state "test"}]})))))
+                                                                    :to-state "test"}]})))))
   
   (testing "don't apply triggers when condition does not match"
     (is (nil? (:current-state (dawn/-evaluate-triggers {} {:trigger [{:when     false
-                                                                  :to-state "test"}]})))))
+                                                                      :to-state "test"}]})))))
   
   (testing "apply triggers when condition does not match a formula"
     (is (nil? (:current-state (dawn/-evaluate-triggers {} {:trigger [{:when     (types/formula {:ast [:binary-op :> [:integer 1] [:integer 10]]})
-                                                                  :to-state "test"}]})))))
+                                                                      :to-state "test"}]})))))
   
   ; TODO: Should orders only be supressed when states change? Not just when triggers match
   (testing "do not generate orders when trigger matches"

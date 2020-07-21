@@ -113,12 +113,18 @@
       (is (= expected (dawn/evaluate {} ast)))))
   
   ; Test function calls.
-  (let [context {:libs {:core {:add-2 {:params  [:integer]
-                                       :returns :integer
-                                       :name    "add-2"
-                                       :doc     "Adds two to input"
-                                       :fn      #(+ % 2)}}}
-                 :static {:funcs {:add-2 (types/fn-ref :core :add-2)}}}]
-    (doseq [[ast expected] {[:call [:static-lookup [:static-var :funcs] [:add-2]] [[:integer 10]] {}] 12}]
+  (let [context {:libs {:core 
+                        {:add-2 {:params  [:integer]
+                                 :returns :integer
+                                 :name    "add-2"
+                                 :doc     "Adds two to input"
+                                 :fn      #(+ % 2)}
+                         :text {:params  [:varargs]                                                       
+                                :fn      #(apply str %)}}}
+                 :static {:funcs {
+                                  :add-2 (types/fn-ref :core :add-2)
+                                  :text (types/fn-ref :core :text)}}}]
+    (doseq [[ast expected] {[:call [:static-lookup [:static-var :funcs] [:add-2]] [[:integer 10]] {}] 12
+                            [:call [:static-lookup [:static-var :funcs] [:text]] [[:string "a"] [:string "b"] [:string "c"]] {}] "abc"}]
       (testing (str "function call: " (second (second ast)))
         (is (= expected (dawn/evaluate context ast)))))))

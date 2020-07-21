@@ -1,25 +1,34 @@
 (ns dawn.evaluator
   (:require [clojure.string :as string]
             [slingshot.slingshot :refer [throw+ try+]]
-            [dawn.types :as types]))
+            [dawn.types :as types]
+            [erinite.utility.xf :as xf]))
+
+(defn rearange-vararg-params [params expected-count]  
+  (conj (vec (take (dec expected-count) params)) (subvec params (dec expected-count))))
 
 (defn -call-function
-  [context func-obj parameters]
-  (when (types/fn-ref? func-obj)
+  "Call a function object, with given a collection of parameters
+   Handles all cases: variadic functions, functions whose implementations require the context map, and error reporting"
+  [context node func-obj parameters]
+  (when (types/fn-ref? func-obj)    
     (when-let [func (get-in (:libs context) (types/path func-obj))]
       (let [expected-params (:params func)
-            with-context? (= (first expected-params) :context)]
-        (if (= (count parameters)
-               ((if with-context? dec identity) (count expected-params)))
+            with-context? (= (first expected-params) :context)
+            expected-count ((if with-context? dec identity) (count expected-params))
+            params (if (= (last expected-params) :varargs) (rearange-vararg-params (vec parameters) expected-count) parameters)]
+        (if (= (count params)
+               expected-count)
           (if with-context?
-            (apply (:fn func) context parameters)
-            (apply (:fn func) parameters))
+            (apply (:fn func) context params)
+            (apply (:fn func) params))
           (throw+ {:error ::call
                    :type :bad-arguments
                    :function (dissoc func :fn)
-                   :parameters parameters
+                   :parameters params
                    :lib (types/lib func-obj)
-                   :message (str "Invalid number of arguments. Expected " (count (:params func)) " got " (count parameters))}))))))
+                   :metadata (meta node)
+                   :message (str "Invalid number of arguments. Expected " (count (:params func)) " got " (count params))}))))))
 
 (defn in?
   "true if coll contains elem"
@@ -31,6 +40,7 @@
       (some #(= elem %) coll))))
 
 (defn concatenate
+  "Concatenate two values. Works for strings, vectors and maps"
   [a b]
   (when (= (type a)
            (type b))
@@ -68,6 +78,7 @@
    :bit-test bit-test})
 
 (defn -read-var
+  "Read a variable, whether static or dynamic. Reports undefined variable if variable wasn't found in context"
   [context node var-type var-name]
   (let [vars (get context (get {:static :static
                                 :dynamic :data} var-type))
@@ -77,48 +88,66 @@
       value
       (throw+ {:error ::var
                :type :undefined
-               :variable var-name
+               :variable (name var-name)
                :variable-type var-type
                :metadata (meta node)
                :message (str "Could not read undefined variable '" (when (= var-type :dynamic) "#") (name var-name) "'")}))))
 
 (defn evaluate
+  "Evaluate an AST node within a context"
   [context [node-type & [value :as args] :as node]]
   (try+
     (case node-type
-    ; Literals
+      ; Literals
       :integer value
       :float value
       :string value
       :boolean value
       :list-literal (mapv #(evaluate context %) args)
       :map-literal (into {} (for [[k v] value] [k (evaluate context v)]))
-    ; Variable access
+      ; Variable access
       :static-var (-read-var context node :static value)
       :dynamic-var (-read-var context node :dynamic value)
-    ; Field access
+      ; Field access
       :static-lookup (get-in (evaluate context value) (second args))
       :dynamic-lookup (get (evaluate context value)
                            (let [key (evaluate context (second args))]
                              (if (string? key) (keyword key) key)))
-    ; Unary operators
+      ; Unary operators
       :unary-op (case value
                   :not (not (evaluate context (second args)))
                   :- (- (evaluate context (second args)))
                   :bit-not (bit-not (evaluate context (second args))))
-    ; Binary operators
-      :binary-op (let [lhs (evaluate context (second args))
-                       rhs (evaluate context (second (next args)))]
+      ; Binary operators
+      :binary-op (let [left (second args)
+                       right (second (next args))
+                       lhs (evaluate context left)
+                       rhs (evaluate context right)]
+                   (when (and (= value :/)
+                              (zero? rhs))
+                     (throw+ {:error ::arithmetic
+                              :type :divide-by-zero
+                              :operation [lhs (symbol value) rhs]
+                              :metadata (meta node)
+                              :message "Attempt to divide by zero"}))
+                   (when (or (nil? lhs)
+                             (nil? rhs))
+                     (throw+ {:error ::arithmetic
+                              :type :nil
+                              :operation [lhs (symbol value) rhs]
+                              :metadata (meta (if (nil? lhs) left right))
+                              :message (str "'" ((xf/when keyword? name) value) "' could not be applied to nil")}))
                    ((get binary-operators value) lhs rhs))
-    ; Ternary
+      ; Ternary
       :ternary-expression (evaluate context (if (evaluate context value)
                                               (second args)
                                               (second (next args))))
-    ; Function calls
+      ; Function calls
       :call (let [func-obj   (evaluate context value)
                   parameters (map #(evaluate context %) (second args))]
-              (-call-function context func-obj parameters)))
+              (-call-function context node func-obj parameters)))
 (catch Exception e
+  ; TODO: Send to datadog
   (println "Evaluation error in:" node-type args)
   (println "Metadata:" (meta node))
   (println "Exception:" e)

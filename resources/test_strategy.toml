@@ -42,8 +42,33 @@ description = "Strategy to test the dawn scripting engine"
             when = "=> #counter < 2"
             data.counter = "=> #counter + 1"
             note.text = "=> [text: 'Counter = ', #counter]"
-            to-state = "end"
+            to-state = "next"
     
     [[states.state]]
-        id = "end"
+        id = "next"
         note.text = "=> #counter"
+
+        [[states.state.trigger]]
+            when = "=> #counter == 0"
+            to-state = "end"
+
+        [[states.state.trigger]]
+            when = true
+            data.counter = "=> #counter - 1"
+            note.text = "=> #counter"
+
+
+        [[states.state.orders]]
+            tag         = "order"
+            type        = "market"
+            side        = "buy"
+            contracts   = 100
+            on.fill.note.text = "Filled"
+
+    [[states.state]]
+        id = "end"
+        note.text = "END"
+
+        [[states.state.trigger]]
+            when = "=> #counter > inputs.in2"
+            note.text = "Greater than in2"

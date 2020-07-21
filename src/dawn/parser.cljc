@@ -2,7 +2,7 @@
   (:require [instaparse.core :as insta]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.set :as sets]
+            [clojure.set :as set]
             [slingshot.slingshot :refer [throw+ try+]]
             [dawn.types :as types])
   (:import [org.tomlj Toml]))
@@ -53,19 +53,36 @@
            :call-expression   (fn [func-name & args] [:call func-name (vec args) {}])}))))
 
 (defn -find-variables
-  "Search the AST for variables by searching the tree for :dynamic-var and :static-var nodes"
+  "Search the AST for dynamic variables by searching the tree for :dynamic-var nodes"
   [ast]
   (->> ast
        ; Tree seq performs a depth-first search and returns a sequence of nodes
        (tree-seq #(or (vector? %)
                       (map? %))
                  identity)
-       ; The nodes we're looking for are in format [type identifier], so we only keep vectors
-       (filter vector?)
-       ; Only keep the vectors where 'type' is one we're interested in
-       (filter #(contains? #{:dynamic-var :static-var} (first %)))
-       ; Group by 'type', returning a map where the keys are the type and value are a list of nodes
-       (group-by first)))
+       ; The nodes we're looking for are in format [:dynamic-var identifier], so we only keep vectors
+       (filter #(and (vector? %)
+                     (= (first %) :dynamic-var)))
+       (map second)
+       (set)))
+
+(defn -find-statics
+  "Search the AST for static variables by searcing the truu for :static-lookup nodes"
+  [ast]
+  (->> ast
+       ; Tree seq performs a depth-first search and returns a sequence of nodes
+       (tree-seq #(or (vector? %)
+                      (map? %))
+                 identity)
+       ; The nodes we're looking for are in format [:static-lookuep [:static-var identifier] args], so we only keep vectors
+       (filter #(and (vector? %)
+                     (= (first %) :static-lookup)))
+       (map (fn [[_ [node-type key] [sub-key & _]]]
+              (when (= node-type :static-var)
+                (when sub-key
+                  (keyword (name key) (name sub-key))))))
+       (remove nil?)
+       (set)))
 
 (defn -get-identifiers
   [[node-type & identifiers]]
@@ -75,6 +92,7 @@
                          (second identifiers))))
 
 (defn -find-functions
+  "Search AST for function calls and extract the function identifiers"
   [ast]
   (->> ast
        (tree-seq #(or (vector? %)
@@ -86,6 +104,7 @@
        (set)))
 
 (defn -make-functions-vars
+  "Generate a function reference object for each function's identifiers (either just function name, or lib and function name)"
   [functions]
   (reduce
    (fn [funcs [lib key]]
@@ -96,26 +115,52 @@
    {}
    functions))
 
+(defn -remove-functions
+  "Remove functions from set of static vars.
+   Function identifiers are parsed the same way as statics, so look the same. This removes the functions to leave only actual statics."
+  [static-vars functions]
+  (->> (for [[lib items] functions
+             [func _] items]
+         (keyword (name lib) (name func)))
+       (apply disj static-vars)))
+
 (defn -capture-variables
   "Search the AST for variable references and return them in sets (separating static and dynamic variables)"
   [ast]
-  (let [{:keys [static-var dynamic-var]} (-find-variables ast)
-        functions (-find-functions ast)]
-    ; Take only the identifiers and convert each list into a set
-    {:static    (set (map second static-var))
-     :dynamic   (set (map second dynamic-var))
-     :functions (-make-functions-vars functions)}))
+  (let [static-vars (-find-statics ast)
+        dynamic-vars (-find-variables ast)
+        functions (-> ast
+                      (-find-functions)
+                      (-make-functions-vars))]
+    {:static    (-remove-functions static-vars functions)
+     :dynamic   dynamic-vars
+     :functions functions}))
 
+(defn -clean-path
+  "Replace state.key with key"
+  [path]
+  (apply
+   conj
+   (reduce
+    (fn [[path prev] key]
+      (if (and (= prev :state)
+               (string? key))
+        [path key]
+        [(conj path prev) key]))
+    [[] (first path)]
+    (rest path))))
 
 (declare ^:dynamic parse-errors)
 
 (defmulti to-clj (fn [obj _ _] (type obj)))
 (defmethod to-clj :default [x _ _] x)
 
+; TODO: clojurescript/javascript version
 (defmethod to-clj java.lang.String
   ;; A string, process it by applying the parser function
   [x path parser]
-  (let [results (parse parser x)]
+  (let [results (parse parser x)
+        path (-clean-path path)]
     (if (insta/failure? results)
       (let [error (insta/get-failure results)]
         (swap! parse-errors conj {:path    path
@@ -137,8 +182,8 @@
  ;; Root of a TOML data-structure, acts like a map
   [x _ parser]
   (->> (.toMap x)
-       (map (fn [[k v]] (let [k (keyword k)]
-                          [k (to-clj v [k] parser)])))
+       (map (fn [[k v]] (let [key (keyword k)]
+                          [key (to-clj v [key] parser)])))
        (into {})))
 
 (defmethod to-clj org.tomlj.MutableTomlTable
@@ -146,8 +191,8 @@
   [x path parser]
   (->> (.toMap x)
        (map (fn [[k v]]
-              (let [k (keyword k)]
-                [k (to-clj v (conj path k) parser)])))
+              (let [key (keyword k)]
+                [key (to-clj v (conj path key) parser)])))
        (into {})))
 
 (defmethod to-clj org.tomlj.MutableTomlArray
@@ -155,7 +200,8 @@
   [x path parser]
   (mapv
    (fn [idx v]
-     (to-clj v (conj path idx) parser))
+     (let [key (or (.getString v "id") idx)]
+       (to-clj v (conj path key) parser)))
    (range)
    (.toList x)))
 
@@ -164,22 +210,26 @@
   (get-in states [state-id :parent]))
 
 (defn -preprocess-states
+  "For each state, generate parent key list, extract variables and group states by id"
   [states initial-variables]
   (->> states
        (map (fn [[state-id state]]
               (let [parents (vec (into (list state-id) (take-while seq (iterate #(-find-parent states %) (:parent state)))))
-                    variables (reduce (comp set sets/union) initial-variables (map #(keys (get-in states [% :data])) parents))]
+                    variables (reduce set/union initial-variables (set (map #(keys (get-in states [% :data])) parents)))]
                 [state-id (assoc state :key parents :variables variables)])))
        (into {})))
 
-(defn -extract-triggers
+(defn -extract-order-triggers
+  "Extract order status change triggers from list of orders for a given state"
   [orders state-id]
   (->> orders
        (map-indexed
         (fn [order-idx order]
           (let [[trig->id id->body] (reduce
                                      (fn [[ids bodies] [k body]]
-                                       (let [id (keyword (str state-id "." order-idx) (name k))]
+                                       (let [event (name k)
+                                             id (keyword (str state-id "." order-idx) event)
+                                             body (assoc body :event event)]
                                          [(assoc ids k id) (assoc bodies id body)]))
                                      [{} {}]
                                      (:on order))]
@@ -193,35 +243,58 @@
        {:orders   []
         :triggers {}})))
 
+(defn -get-statics
+  "Get the static variable set from a value, if its a formula object"
+  [value]
+  (when (types/formula? value)
+    (:static (types/vars value))))
+
+(defn -extract-statics
+  "Get a set of all statics found in a collection of orders and triggers"
+  [entities]
+  (reduce
+   #(reduce set/union %1 (map (comp set -get-statics val) %2))
+   #{}
+   entities))
+
 (defn -prepare-strategy
+  "Takes a newly parsed strategy and processes it into the usable runtime form.
+   This is done by:
+     - Extracting order triggers from orders in each state
+     - Extracting a list of static variables from every function object for each state
+     - Transforming the collection of states into a map of states keyed by state id
+     - Finding each states parents
+     - Setting the initial state"
   [{:keys [inputs config data states]}]
   (let [raw-states        states
         [states triggers] (next
                            (reduce
                             (fn [[state-idx states triggers] state]
-                              (let [results (-extract-triggers (:orders state) state-idx)]
+                              (let [results (-extract-order-triggers (:orders state) state-idx)
+                                    orders (:orders results)]
                                 [(inc state-idx)
-                                 (conj states (assoc state :orders (:orders results)))
+                                 (conj states (assoc state
+                                                     :watch (-extract-statics (concat orders (:trigger state)))
+                                                     :orders orders))
                                  (merge triggers (:triggers results))]))
                             [0 [] {}]
                             (:state states)))]
     (-> {:inputs       inputs
          :config       config
          :initial-data data
-         :states       (assoc raw-states :state states)
          :triggers     triggers
-         :states-by-id (->> states
+         :states       (->> states
                             (group-by :id)
                             (map (fn [[k v]] [k (first v)]))
                             (into {}))}
         (assoc-in [:initial-data :dawn/state] (:initial raw-states))
-        (update :states-by-id -preprocess-states (set (keys data))))))
+        (update :states -preprocess-states (set (keys data))))))
 
 (defn load-toml
   "Take a parser function and source string and convert source string into a tree structure"
   [parser source]
   (binding [parse-errors (atom [])]
-    (let [toml-obj (Toml/parse source)
+    (let [toml-obj (Toml/parse source) ; TODO: Add clojurescript/javascript support
           results (to-clj toml-obj [] parser)
           errors  @parse-errors]
       (if (seq errors)
