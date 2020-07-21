@@ -92,6 +92,7 @@
                          (second identifiers))))
 
 (defn -find-functions
+  "Search AST for function calls and extract the function identifiers"
   [ast]
   (->> ast
        (tree-seq #(or (vector? %)
@@ -103,6 +104,7 @@
        (set)))
 
 (defn -make-functions-vars
+  "Generate a function reference object for each function's identifiers (either just function name, or lib and function name)"
   [functions]
   (reduce
    (fn [funcs [lib key]]
@@ -114,6 +116,8 @@
    functions))
 
 (defn -remove-functions
+  "Remove functions from set of static vars.
+   Function identifiers are parsed the same way as statics, so look the same. This removes the functions to leave only actual statics."
   [static-vars functions]
   (->> (for [[lib items] functions
              [func _] items]
@@ -151,6 +155,7 @@
 (defmulti to-clj (fn [obj _ _] (type obj)))
 (defmethod to-clj :default [x _ _] x)
 
+; TODO: clojurescript/javascript version
 (defmethod to-clj java.lang.String
   ;; A string, process it by applying the parser function
   [x path parser]
@@ -205,6 +210,7 @@
   (get-in states [state-id :parent]))
 
 (defn -preprocess-states
+  "For each state, generate parent key list, extract variables and group states by id"
   [states initial-variables]
   (->> states
        (map (fn [[state-id state]]
@@ -213,7 +219,8 @@
                 [state-id (assoc state :key parents :variables variables)])))
        (into {})))
 
-(defn -extract-triggers
+(defn -extract-order-triggers
+  "Extract order status change triggers from list of orders for a given state"
   [orders state-id]
   (->> orders
        (map-indexed
@@ -237,11 +244,13 @@
         :triggers {}})))
 
 (defn -get-statics
+  "Get the static variable set from a value, if its a formula object"
   [value]
   (when (types/formula? value)
     (:static (types/vars value))))
 
 (defn -extract-statics
+  "Get a set of all statics found in a collection of orders and triggers"
   [entities]
   (reduce
    #(reduce set/union %1 (map (comp set -get-statics val) %2))
@@ -249,12 +258,19 @@
    entities))
 
 (defn -prepare-strategy
+  "Takes a newly parsed strategy and processes it into the usable runtime form.
+   This is done by:
+     - Extracting order triggers from orders in each state
+     - Extracting a list of static variables from every function object for each state
+     - Transforming the collection of states into a map of states keyed by state id
+     - Finding each states parents
+     - Setting the initial state"
   [{:keys [inputs config data states]}]
   (let [raw-states        states
         [states triggers] (next
                            (reduce
                             (fn [[state-idx states triggers] state]
-                              (let [results (-extract-triggers (:orders state) state-idx)
+                              (let [results (-extract-order-triggers (:orders state) state-idx)
                                     orders (:orders results)]
                                 [(inc state-idx)
                                  (conj states (assoc state
@@ -278,7 +294,7 @@
   "Take a parser function and source string and convert source string into a tree structure"
   [parser source]
   (binding [parse-errors (atom [])]
-    (let [toml-obj (Toml/parse source)
+    (let [toml-obj (Toml/parse source) ; TODO: Add clojurescript/javascript support
           results (to-clj toml-obj [] parser)
           errors  @parse-errors]
       (if (seq errors)

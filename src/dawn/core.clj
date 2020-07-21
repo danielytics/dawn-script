@@ -5,20 +5,10 @@
             [clojure.pprint :refer [pprint]]
             [com.walmartlabs.datascope :as scope]
             [rhizome.viz :as viz]
+            [dawn.utility :as util]
             [dawn.parser :as parser]
             [dawn.runtime :as runtime]
             [erinite.utility.xf :as xf]))
-
-(defn -process-state
-  [state]
-  state)
-
-(defn prepare-states
-  [{:keys [states]}]
-  (->> (:state states)
-       (group-by :id)
-       (map (fn [[k state]] [k (-process-state (first state))]))
-       (into {})))
 
 (defn find-libraries
   "By convention, variable names that start with an uppercase character are library names, unless the variable name is all-caps"
@@ -65,6 +55,7 @@
    (:config (load-file "resources/strategy.toml")))
 
 (defn -set-event
+  "Mutates the event object to include its trigger logic, if there is any"
   [strategy event]
   (-> event
       (select-keys [:status :order])
@@ -99,10 +90,12 @@
      {:type :result
       :result (runtime/execute strategy instance)})
    (catch Object e
-     (let [error (-generate-error-data e)]
+     (let [error   (-generate-error-data e)
+           message (get-in error [:human :message])
+           path    (get-in error [:human :path])]
        {:type :error
         :error error
-        :result {:messages [{:category :error :time nil :text (str (get-in error [:human :message]) " in " (get-in error [:human :path]))}]}}))))
+        :result {:messages [(util/make-message :error (str message " in " path))]}}))))
 
 
 #_

@@ -2,7 +2,8 @@
   (:require [slingshot.slingshot :refer [throw+ try+]]
             [dawn.builtins :as builtins]
             [dawn.evaluator :as evaluator]
-            [dawn.types :as types]))
+            [dawn.types :as types]
+            [dawn.utility :as util]))
 
 (defn -eval
   "Evaluate a value in a given context. If the value is a literal value, then it is returned
@@ -20,7 +21,7 @@
     value))
 
 (defn -generate-binding-combos
-  "Generate a sequence of all combinations of bindings."
+  "Generate a sequence of all combinations of foreach bindings"
   [var-bindings]
   (reduce
     (fn [accum [k next]]
@@ -73,33 +74,23 @@
          (into {}))))
 
 (defn -check-trigger-fn
-  "Return a function which checks if the 'when' parameter of a trigger evaluates to true."
+  "Return a function which checks if the 'when' parameter of a trigger evaluates to true"
   [context]
   (fn [{condition :when :as trigger}]
     (when (-eval context condition)
       (dissoc trigger :condition))))
 
-(defn -add-message
-  "Add a message to the message log."
-  [context category message]
-  (let [category-kw (keyword category)]
-    (if (contains? #{:warning :error :info :note :order} category-kw)
-      (update context :messages conj {:category category-kw
-                                      :time     nil
-                                      :text     message})
-      (-add-message context :warning (str "Tried to add note with invalid category '" category "': " message)))))
-
 (defn -eval-message
   "Add note to messaegs, if required"
   [context note]
   (if (seq note)
-    (-add-message context
+    (util/add-message context
                   (get note :category :note)
                   (-eval context (get note :text "")))
     context))
 
 (defn -process-trigger-action
-  "Apply a triggers resulting actions to the context."
+  "Apply a triggers resulting actions to the context"
   [context trigger-action]
   (let [new-state (-eval context (:to-state trigger-action))]
     ; Need to retract orders here by creating actions
@@ -185,13 +176,13 @@
          context         context]
     (let [current-state (:current-state context)
           context       (-> context
-                            (-add-message :info (str "Executing state: " current-state))
+                            (util/add-message :info (str "Executing state: " current-state))
                             (-execution-pass states (get states current-state))
                             (assoc :previous-state current-state))
           next-state    (:current-state context)]
       (if (not= next-state current-state)
         (if (contains? visited-states next-state)
-          (-add-message context :warning (str "Loop detected: " initial-state " -> ... -> " current-state " -> " next-state))
+          (util/add-message context :warning (str "Loop detected: " initial-state " -> ... -> " current-state " -> " next-state))
           (recur (conj visited-states next-state)
                  (assoc context :new-state? true)))
         context))))
@@ -217,8 +208,8 @@
                          :data           (dissoc data :dawn/state)})
         context         (if-let [trigger (:trigger event)]
                           (-> context
-                              (-add-message :info (str trigger))
-                              (-add-message :info (str "Executing event handler" (when-let [tag (:event trigger)] (str ": " tag))))
+                              (util/add-message :info (str trigger))
+                              (util/add-message :info (str "Executing event handler" (when-let [tag (:event trigger)] (str ": " tag))))
                               (-process-trigger-action trigger))
                           context)
         results        (-run-execution-loop initial-state states context)

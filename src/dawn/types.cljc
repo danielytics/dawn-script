@@ -28,17 +28,21 @@
   (toString [_] (str "`Function => " fn-path "`")))
 
 (defn formula
+  "Construct a formula object"
   [{:keys [path vars source ast]}]
   (->FormulaObj path source vars ast))
 
 (defn formula?
+  "Test if a value is a formula object"
   [v]
   (satisfies? Formula v))
 
 (defn fn-ref
+  "Create a function reference object"
   [lib key]
   (->FunctionVar [lib key]))
 
 (defn fn-ref?
+  "Test if a value is a function reference object"
   [v]
   (satisfies? FuncRef v))

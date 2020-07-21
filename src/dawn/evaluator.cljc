@@ -8,6 +8,8 @@
   (conj (vec (take (dec expected-count) params)) (subvec params (dec expected-count))))
 
 (defn -call-function
+  "Call a function object, with given a collection of parameters
+   Handles all cases: variadic functions, functions whose implementations require the context map, and error reporting"
   [context node func-obj parameters]
   (when (types/fn-ref? func-obj)    
     (when-let [func (get-in (:libs context) (types/path func-obj))]
@@ -38,6 +40,7 @@
       (some #(= elem %) coll))))
 
 (defn concatenate
+  "Concatenate two values. Works for strings, vectors and maps"
   [a b]
   (when (= (type a)
            (type b))
@@ -75,6 +78,7 @@
    :bit-test bit-test})
 
 (defn -read-var
+  "Read a variable, whether static or dynamic. Reports undefined variable if variable wasn't found in context"
   [context node var-type var-name]
   (let [vars (get context (get {:static :static
                                 :dynamic :data} var-type))
@@ -90,30 +94,31 @@
                :message (str "Could not read undefined variable '" (when (= var-type :dynamic) "#") (name var-name) "'")}))))
 
 (defn evaluate
+  "Evaluate an AST node within a context"
   [context [node-type & [value :as args] :as node]]
   (try+
     (case node-type
-    ; Literals
+      ; Literals
       :integer value
       :float value
       :string value
       :boolean value
       :list-literal (mapv #(evaluate context %) args)
       :map-literal (into {} (for [[k v] value] [k (evaluate context v)]))
-    ; Variable access
+      ; Variable access
       :static-var (-read-var context node :static value)
       :dynamic-var (-read-var context node :dynamic value)
-    ; Field access
+      ; Field access
       :static-lookup (get-in (evaluate context value) (second args))
       :dynamic-lookup (get (evaluate context value)
                            (let [key (evaluate context (second args))]
                              (if (string? key) (keyword key) key)))
-    ; Unary operators
+      ; Unary operators
       :unary-op (case value
                   :not (not (evaluate context (second args)))
                   :- (- (evaluate context (second args)))
                   :bit-not (bit-not (evaluate context (second args))))
-    ; Binary operators
+      ; Binary operators
       :binary-op (let [left (second args)
                        right (second (next args))
                        lhs (evaluate context left)
@@ -133,11 +138,11 @@
                               :metadata (meta (if (nil? lhs) left right))
                               :message (str "'" ((xf/when keyword? name) value) "' could not be applied to nil")}))
                    ((get binary-operators value) lhs rhs))
-    ; Ternary
+      ; Ternary
       :ternary-expression (evaluate context (if (evaluate context value)
                                               (second args)
                                               (second (next args))))
-    ; Function calls
+      ; Function calls
       :call (let [func-obj   (evaluate context value)
                   parameters (map #(evaluate context %) (second args))]
               (-call-function context node func-obj parameters)))
