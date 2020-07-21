@@ -2,7 +2,7 @@
   (:require [instaparse.core :as insta]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.set :as sets]
+            [clojure.set :as set]
             [slingshot.slingshot :refer [throw+ try+]]
             [dawn.types :as types])
   (:import [org.tomlj Toml]))
@@ -209,7 +209,7 @@
   (->> states
        (map (fn [[state-id state]]
               (let [parents (vec (into (list state-id) (take-while seq (iterate #(-find-parent states %) (:parent state)))))
-                    variables (reduce (comp set sets/union) initial-variables (map #(keys (get-in states [% :data])) parents))]
+                    variables (reduce set/union initial-variables (set (map #(keys (get-in states [% :data])) parents)))]
                 [state-id (assoc state :key parents :variables variables)])))
        (into {})))
 
@@ -236,15 +236,30 @@
        {:orders   []
         :triggers {}})))
 
+(defn -get-statics
+  [value]
+  (when (types/formula? value)
+    (:static (types/vars value))))
+
+(defn -extract-statics
+  [entities]
+  (reduce
+   #(reduce set/union %1 (map (comp set -get-statics val) %2))
+   #{}
+   entities))
+
 (defn -prepare-strategy
   [{:keys [inputs config data states]}]
   (let [raw-states        states
         [states triggers] (next
                            (reduce
                             (fn [[state-idx states triggers] state]
-                              (let [results (-extract-triggers (:orders state) state-idx)]
+                              (let [results (-extract-triggers (:orders state) state-idx)
+                                    orders (:orders results)]
                                 [(inc state-idx)
-                                 (conj states (assoc state :orders (:orders results)))
+                                 (conj states (assoc state
+                                                     :watch (-extract-statics (concat orders (:trigger state)))
+                                                     :orders orders))
                                  (merge triggers (:triggers results))]))
                             [0 [] {}]
                             (:state states)))]

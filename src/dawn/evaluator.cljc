@@ -1,7 +1,8 @@
 (ns dawn.evaluator
   (:require [clojure.string :as string]
             [slingshot.slingshot :refer [throw+ try+]]
-            [dawn.types :as types]))
+            [dawn.types :as types]
+            [erinite.utility.xf :as xf]))
 
 (defn rearange-vararg-params [params expected-count]  
   (conj (vec (take (dec expected-count) params)) (subvec params (dec expected-count))))
@@ -113,14 +114,24 @@
                   :- (- (evaluate context (second args)))
                   :bit-not (bit-not (evaluate context (second args))))
     ; Binary operators
-      :binary-op (let [lhs (evaluate context (second args))
-                       rhs (evaluate context (second (next args)))]
+      :binary-op (let [left (second args)
+                       right (second (next args))
+                       lhs (evaluate context left)
+                       rhs (evaluate context right)]
                    (when (and (= value :/)
                               (zero? rhs))
                      (throw+ {:error ::arithmetic
                               :type :divide-by-zero
+                              :operation [lhs (symbol value) rhs]
                               :metadata (meta node)
                               :message "Attempt to divide by zero"}))
+                   (when (or (nil? lhs)
+                             (nil? rhs))
+                     (throw+ {:error ::arithmetic
+                              :type :nil
+                              :operation [lhs (symbol value) rhs]
+                              :metadata (meta (if (nil? lhs) left right))
+                              :message (str "'" ((xf/when keyword? name) value) "' could not be applied to nil")}))
                    ((get binary-operators value) lhs rhs))
     ; Ternary
       :ternary-expression (evaluate context (if (evaluate context value)

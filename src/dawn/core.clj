@@ -57,47 +57,55 @@
      :image (-> data scope/dot viz/dot->image (viz/save-image "debug.png")))))
 
 ;(debug :pprint (load-file "resources/strategy.toml"))
-#_
-(debug :print-str (get-in
-                   (load-file "resources/test_strategy.toml")
-                   [:states "start" :trigger 0 :note :text]))
+#_(debug :print-str (get-in
+                     (load-file "resources/test_strategy.toml")
+                     [:states "start" :trigger 0 :note :text]))
 
 #_(clojure.pprint/pprint
- (:config (load-file "resources/strategy.toml")))
+   (:config (load-file "resources/strategy.toml")))
+
+(defn -set-event
+  [strategy event]
+  (-> event
+      (select-keys [:status :order])
+      (assoc :trigger (when-let [trigger (get-in strategy [:triggers (:id event)])]
+                        (update trigger :event #(str (get-in event [:order :tag]) "/" %))))))
+
+(defn -generate-error-data
+  "Generate detailed error structure from exception"
+  [e]
+  (let [start-index (get-in e [:metadata :instaparse.gll/start-index] 0)
+        end-index (get-in e [:metadata :instaparse.gll/end-index] (count (:source e)))]
+    {; Machine-readable error details
+     :machine (if (instance? Exception e)
+                e
+                (assoc
+                 (select-keys e [:type :variable :variable-type :function :operation :parameters :lib])
+                 :what (:error e)
+                 :path (:object-path e)))
+     ; Human readable error
+     :human {:message (:message e)
+             :path  (string/join "." (map (xf/when keyword? name) (:object-path e)))
+             :source (:source e)
+             :index [start-index end-index]
+             :highlight (str (string/join "" (repeat start-index " "))
+                             (string/join "" (repeat (- end-index start-index) "^")))}}))
 
 (defn execute
   "Execute an instance of a strategy. If :data is {}, a new instance is generated."
   [strategy instance]
   (try+
-   (let [instance (update instance :event (fn [event]
-                                             (-> event
-                                                 (select-keys [:status :order])
-                                                 (assoc :trigger (-> strategy
-                                                                     (get-in [:triggers (:id event)])
-                                                                     (update :event #(str (get-in event [:order :tag]) "/" %)))))))
-         {:keys [orders messages data]} (runtime/execute strategy instance)]
+   (let [instance (update instance :event #(-set-event strategy %))]
      {:type :result
-      :result {:orders orders
-               :messages messages
-               :data data}})
+      :result (runtime/execute strategy instance)})
    (catch Object e
-     (let [start-index (get-in e [:metadata :instaparse.gll/start-index] 0)
-           end-index (get-in e [:metadata :instaparse.gll/end-index] (count (:source e)))]
+     (let [error (-generate-error-data e)]
        {:type :error
-        :error {:message (:message e)
-                :details (if (instance? Exception e)
-                           e
-                           (assoc
-                            (select-keys e [:type :variable :variable-type :function :parameters :lib])
-                            :what (:error e)
-                            :path (:object-path e)))
-                :path  (string/join "." (map (xf/when keyword? name) (:object-path e)))
-                :source {:raw (:source e)
-                         :index [start-index end-index]
-                         :highlight (str (:source e) "\n"
-                                         (string/join "" (repeat start-index " "))
-                                         (string/join "" (repeat (- end-index start-index) "^")))}}}))))
+        :error error
+        :result {:messages [{:category :error :time nil :text (str (get-in error [:human :message]) " in " (get-in error [:human :path]))}]}}))))
 
+
+#_
 (let [strategy (load-file "resources/test_strategy.toml")
       instance {:inputs {:in1 0
                          :in2 0}
@@ -113,10 +121,12 @@
                 :order {:tag "order"}}]
     (let [retval (execute strategy (assoc instance :data data :event event))]
       (case (:type retval)
-        :result (let [{:keys [orders messages data] :as foo} (:result retval)]
+        :result (let [{:keys [orders messages data watch]} (:result retval)]
                   (println "---")
                   (println "Orders:")
                   (pprint orders)
+                  (println "Watching:")
+                  (pprint watch)
                   (println "Messages:")
                   (pprint messages)
                   (if (pos? counter)
@@ -125,9 +135,15 @@
                       (println)
                       (println "Final Data:")
                       (pprint data))))
-        :error  (let [{:keys [details message source path] :as error} (:error retval)]
-                  (debug :pprint error)
-                  (println "ERROR:" details)
-                  (println message)
-                  (println "In:" path)
-                  (println (:highlight source)))))))
+        :error  (let [{:keys [human machine]} (:error retval)]
+                  (println "Messages:")
+                  (pprint (get-in retval [:result :messages]))
+                  (println "ERROR:" (:message human))
+                  (println "In:" (:path human))
+                  (println)
+                  (println (:source human))
+                  (println (:highlight human))
+                  (println)
+                  (println "Additional Details:")
+                  (println machine)
+                  (println))))))

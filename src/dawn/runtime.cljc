@@ -217,12 +217,15 @@
                          :data           (dissoc data :dawn/state)})
         context         (if-let [trigger (:trigger event)]
                           (-> context
+                              (-add-message :info (str trigger))
                               (-add-message :info (str "Executing event handler" (when-let [tag (:event trigger)] (str ": " tag))))
                               (-process-trigger-action trigger))
                           context)
-        results        (-run-execution-loop initial-state states context)]
+        results        (-run-execution-loop initial-state states context)
+        end-state      (:current-state results)]
     (-> results
         (select-keys [:messages :data :orders])
         (update :orders (comp vec vals))
-        (assoc-in [:data :dawn/state] (:current-state results))
+        (assoc :watch (:watch (get states end-state)))
+        (assoc-in [:data :dawn/state] end-state)
         (assoc-in [:data :dawn/orders] (set (keys (:orders results)))))))
