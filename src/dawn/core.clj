@@ -6,7 +6,8 @@
             [com.walmartlabs.datascope :as scope]
             [rhizome.viz :as viz]
             [dawn.parser :as parser]
-            [dawn.runtime :as runtime]))
+            [dawn.runtime :as runtime]
+            [erinite.utility.xf :as xf]))
 
 (defn -process-state
   [state]
@@ -68,7 +69,13 @@
   "Execute an instance of a strategy. If :data is {}, a new instance is generated."
   [strategy instance]
   (try+
-   (let [{:keys [orders messages data]} (runtime/execute strategy instance)]
+   (let [instance (update instance :event (fn [event]
+                                             (-> event
+                                                 (select-keys [:status :order])
+                                                 (assoc :trigger (-> strategy
+                                                                     (get-in [:triggers (:id event)])
+                                                                     (update :event #(str (get-in event [:order :tag]) "/" %)))))))
+         {:keys [orders messages data]} (runtime/execute strategy instance)]
      {:type :result
       :result {:orders orders
                :messages messages
@@ -83,30 +90,28 @@
                            (assoc
                             (select-keys e [:type :variable :variable-type :function :parameters :lib])
                             :what (:error e)
-                            :path (get-in e [:object-path :keys])))
-                :path  (get-in e [:object-path :human])
+                            :path (:object-path e)))
+                :path  (string/join "." (map (xf/when keyword? name) (:object-path e)))
                 :source {:raw (:source e)
                          :index [start-index end-index]
                          :highlight (str (:source e) "\n"
                                          (string/join "" (repeat start-index " "))
                                          (string/join "" (repeat (- end-index start-index) "^")))}}}))))
 
-
 (let [strategy (load-file "resources/test_strategy.toml")
-      instance {:inputs   {:in1 0
-                           :in2 0}
-                :account  {:balance  1000
-                           :leverage 1}
-                :config   {:order-sizes          [10 10 10 10]
-                           :tp-trail-threshold   100
-                           :trailing-stop-offset 10}
-                :orders   {}
-                :data     {}}]
-  ;(pprint strategy)
-  (println "<><><><><>")
-  (loop [instance instance
-         counter 2]
-    (let [retval (execute strategy instance)]
+      instance {:inputs {:in1 0
+                         :in2 0}
+                :config {:order-sizes          [10 10 10 10]
+                         :tp-trail-threshold   100
+                         :trailing-stop-offset 10}
+                :account {:balance  1000
+                          :leverage 1}}]
+  (loop [data {}
+         counter 2
+         event {:id :1.0/fill
+                :status :filled
+                :order {:tag "order"}}]
+    (let [retval (execute strategy (assoc instance :data data :event event))]
       (case (:type retval)
         :result (let [{:keys [orders messages data] :as foo} (:result retval)]
                   (println "---")
@@ -115,7 +120,7 @@
                   (println "Messages:")
                   (pprint messages)
                   (if (pos? counter)
-                    (recur (assoc instance :data data) (dec counter))
+                    (recur data (dec counter) nil)
                     (do
                       (println)
                       (println "Final Data:")

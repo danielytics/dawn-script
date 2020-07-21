@@ -132,13 +132,19 @@
      :dynamic   dynamic-vars
      :functions functions}))
 
-
-(defn -update-path
-  "Append new key to path"
-  [path key key-name]
-  (-> path
-      (update :keys conj key)
-      (update :human str "." key-name)))
+(defn -clean-path
+  "Replace state.key with key"
+  [path]
+  (apply
+   conj
+   (reduce
+    (fn [[path prev] key]
+      (if (and (= prev :state)
+               (string? key))
+        [path key]
+        [(conj path prev) key]))
+    [[] (first path)]
+    (rest path))))
 
 (declare ^:dynamic parse-errors)
 
@@ -148,7 +154,8 @@
 (defmethod to-clj java.lang.String
   ;; A string, process it by applying the parser function
   [x path parser]
-  (let [results (parse parser x)]
+  (let [results (parse parser x)
+        path (-clean-path path)]
     (if (insta/failure? results)
       (let [error (insta/get-failure results)]
         (swap! parse-errors conj {:path    path
@@ -170,10 +177,8 @@
  ;; Root of a TOML data-structure, acts like a map
   [x _ parser]
   (->> (.toMap x)
-       (map (fn [[k v]] (let [key (keyword k)
-                              path {:keys [key]
-                                    :human k}]
-                          [key (to-clj v path parser)])))
+       (map (fn [[k v]] (let [key (keyword k)]
+                          [key (to-clj v [key] parser)])))
        (into {})))
 
 (defmethod to-clj org.tomlj.MutableTomlTable
@@ -182,7 +187,7 @@
   (->> (.toMap x)
        (map (fn [[k v]]
               (let [key (keyword k)]
-                [key (to-clj v (-update-path path key k) parser)])))
+                [key (to-clj v (conj path key) parser)])))
        (into {})))
 
 (defmethod to-clj org.tomlj.MutableTomlArray
@@ -190,8 +195,8 @@
   [x path parser]
   (mapv
    (fn [idx v]
-     (let [id (or (.getString v "id") idx)]
-       (to-clj v (-update-path path idx id) parser)))
+     (let [key (or (.getString v "id") idx)]
+       (to-clj v (conj path key) parser)))
    (range)
    (.toList x)))
 
@@ -215,7 +220,9 @@
         (fn [order-idx order]
           (let [[trig->id id->body] (reduce
                                      (fn [[ids bodies] [k body]]
-                                       (let [id (keyword (str state-id "." order-idx) (name k))]
+                                       (let [event (name k)
+                                             id (keyword (str state-id "." order-idx) event)
+                                             body (assoc body :event event)]
                                          [(assoc ids k id) (assoc bodies id body)]))
                                      [{} {}]
                                      (:on order))]

@@ -182,7 +182,7 @@
    Detects loops to ensure that it will return."
   [initial-state states context]
   (loop [visited-states #{initial-state}
-          context         context]
+         context         context]
     (let [current-state (:current-state context)
           context       (-> context
                             (-add-message :info (str "Executing state: " current-state))
@@ -202,6 +202,7 @@
   (let [static-data    {:libs builtins/libraries
                         :static {:inputs   inputs
                                  :config   config
+                                 :event    event
                                  :account  account}}
         previous-state (:dawn/state data)
         data           (if previous-state data (-kv-evaluate static-data initial-data))
@@ -214,6 +215,11 @@
                          :current-state  current-state
                          :new-state?     (not= previous-state current-state)
                          :data           (dissoc data :dawn/state)})
+        context         (if-let [trigger (:trigger event)]
+                          (-> context
+                              (-add-message :info (str "Executing event handler" (when-let [tag (:event trigger)] (str ": " tag))))
+                              (-process-trigger-action trigger))
+                          context)
         results        (-run-execution-loop initial-state states context)]
     (-> results
         (select-keys [:messages :data :orders])
