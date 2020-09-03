@@ -9,7 +9,7 @@
                  [slingshot "0.12.2"]
                  [tick "0.4.26-alpha"]
                  [com.taoensso/timbre "4.10.0"]
-                 [erinite/utility "0.1.0"]]
+                 [erinite/utility "0.1.1-SNAPSHOT"]]
   :repl-options {:init-ns dawn.core}
   :profiles {:dev {:dependencies [[walmartlabs/datascope "0.1.1"]]
                    :plugins [[com.jakemccrary/lein-test-refresh "0.24.1"]]}})

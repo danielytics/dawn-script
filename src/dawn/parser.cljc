@@ -200,7 +200,10 @@
   [x path parser]
   (mapv
    (fn [idx v]
-     (let [key (or (.getString v "id") idx)]
+     (let [key (or (when (= (type v)
+                            org.tomlj.MutableTomlTable)
+                     (.getString v "id"))
+                   idx)]
        (to-clj v (conj path key) parser)))
    (range)
    (.toList x)))
@@ -290,18 +293,28 @@
         (assoc-in [:initial-data :dawn/state] (:initial raw-states))
         (update :states -preprocess-states (set (keys data))))))
 
+(defn -extract-errors
+  [obj]
+  (doseq [error (.errors obj)]
+    (let [position (.position error)]
+      (swap! parse-errors conj {:line (.line position)
+                                :column (.column position)
+                                :failure (.toString error)}))))
+
 (defn load-toml
   "Take a parser function and source string and convert source string into a tree structure"
   [parser source]
   (binding [parse-errors (atom [])]
     (let [toml-obj (Toml/parse source) ; TODO: Add clojurescript/javascript support
-          results (to-clj toml-obj [] parser)
+          results (if (.hasErrors toml-obj)
+                    (-extract-errors toml-obj)
+                    (to-clj toml-obj [] parser))
           errors  @parse-errors]
       (if (seq errors)
         (do
           (println (count errors) "Parse Errors:")
           (doseq [[index error] (map-indexed vector errors)]
-            (println "Error" (inc index) "at" (:path error))
+            (println "Error" (inc index) "at" (or (:path error) (str (:line error) ":" (:column error))))
             (println (:failure error)))
           {:errors errors
            :data results})
