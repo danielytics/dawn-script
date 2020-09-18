@@ -282,9 +282,9 @@
                                  (merge triggers (:triggers results))]))
                             [0 [] {}]
                             (:state states)))]
-    (-> {:inputs       inputs
-         :config       config
-         :initial-data data
+    (-> {:inputs       (or inputs {})
+         :config       (or config [])
+         :initial-data (or data {})
          :triggers     triggers
          :states       (->> states
                             (group-by :id)
