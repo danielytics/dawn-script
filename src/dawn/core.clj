@@ -71,12 +71,12 @@
                              (string/join "" (repeat (- end-index start-index) "^")))}}))
 
 (defn execute
-  "Execute an instance of a strategy. If :data is {}, a new instance is generated."
-  [strategy instance]
+  "Execute an instance of a strategy. If (:data instance) is {}, a new instance is generated."
+  [strategy instance input-data]
   (try+
    (let [instance (update instance :event #(-set-event strategy %))]
      {:type :result
-      :result (runtime/execute strategy instance)})
+      :result (runtime/execute strategy instance input-data)})
    (catch Object e
      (let [error   (-generate-error-data e)
            message (get-in error [:human :message])

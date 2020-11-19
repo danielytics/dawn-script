@@ -73,13 +73,6 @@
          ; Return a tag->order map
          (into {}))))
 
-(defn -check-trigger-fn
-  "Return a function which checks if the 'when' parameter of a trigger evaluates to true"
-  [context]
-  (fn [{condition :when :as trigger}]
-    (when (-eval context condition)
-      (dissoc trigger :condition))))
-
 (defn -eval-message
   "Add note to messaegs, if required"
   [context note]
@@ -107,17 +100,41 @@
   (let [orders (-evaluate-orders context orders)]
     (update context :orders (partial merge-with merge) orders)))
 
+(defn -check-trigger
+  "Check if the 'when' parameter of a trigger evaluates to true"
+  [context {condition :when :as trigger}]
+  (when (-eval context condition)
+    (dissoc trigger :condition)))
+
+(defn -check-trigger-fn
+  "Return a function which checks if the 'when' parameter of a trigger evaluates to true"
+  [context]
+  (partial -check-trigger context))
+
+(defn -apply-triggers
+  "Test if a trigger is valid and if so, apply to context and mark as dirty, otherwise add to list of available triggers"
+  [{:keys [context remaining-triggers dirty?]} trigger]
+  (if (-check-trigger context trigger)
+    {:context (-process-trigger-action context trigger)
+     :remaining-triggers remaining-triggers
+     :dirty? true}
+    {:context context
+     :remaining-triggers (conj remaining-triggers trigger)
+     :dirty? dirty?}))
+
 (defn -evaluate-triggers
-  "Test and apply triggers to the context."
+  "Test and apply triggers to the context. Repeat until all triggers have been applied, or no triggers' when conditions match.
+   Each trigger is applied zero or one times."
   [context state]
-  (let [check-trigger (-check-trigger-fn context)]
-    (reduce
-      (fn [context trigger]
-        (if (check-trigger trigger)
-          (-process-trigger-action context trigger)
-          context))
-      context
-      (:trigger state))))
+  (loop [available-triggers (:trigger state)
+         context context]
+    (let [results (reduce -apply-triggers
+                          {:context context :remaining-triggers [] :drity? false}
+                          available-triggers)
+          context (:context results)]
+      (if (:dirty? results)
+        (recur (:remaining-triggers results) context)
+        context))))
 
 (defn -check-state-change
   "Check if a state transition has been triggered, abort reduction if so"
@@ -189,11 +206,12 @@
 
 (defn execute
   "Construct a context map from a given strategy, data, configuration and inputs, then runs the execution loop against this context."
-  [{:keys [initial-data states]} {:keys [inputs config account data event]}]
+  [{:keys [initial-data states]} {:keys [config data]} {:keys [inputs account market event]}]
   (let [static-data    {:libs builtins/libraries
                         :static {:inputs   inputs
                                  :config   config
                                  :event    event
+                                 :market   market
                                  :account  account}}
         previous-state (:dawn/state data)
         data           (if previous-state data (-kv-evaluate static-data initial-data))

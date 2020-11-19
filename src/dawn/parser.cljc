@@ -80,7 +80,8 @@
        (map (fn [[_ [node-type key] [sub-key & _]]]
               (when (= node-type :static-var)
                 (when sub-key
-                  (keyword (name key) (name sub-key))))))
+                  {:category key
+                   :field sub-key}))))
        (remove nil?)
        (set)))
 
@@ -311,11 +312,11 @@
                     (to-clj toml-obj [] parser))
           errors  @parse-errors]
       (if (seq errors)
-        (do
+        #_(do
           (println (count errors) "Parse Errors:")
           (doseq [[index error] (map-indexed vector errors)]
             (println "Error" (inc index) "at" (or (:path error) (str (:line error) ":" (:column error))))
-            (println (:failure error)))
-          {:errors errors
-           :data results})
+            (println (:failure error))))
+        {:errors errors
+         :data results}
         (-prepare-strategy results)))))
