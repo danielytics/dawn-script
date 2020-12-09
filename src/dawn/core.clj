@@ -74,7 +74,7 @@
   "Execute an instance of a strategy. If (:data instance) is {}, a new instance is generated."
   [strategy instance input-data]
   (try+
-   (let [instance (update instance :event #(-set-event strategy %))]
+   (let [input-data (update input-data :event #(-set-event strategy %))]
      {:type :result
       :result (runtime/execute strategy instance input-data)})
    (catch Object e

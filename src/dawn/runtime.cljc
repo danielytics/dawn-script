@@ -226,7 +226,6 @@
                          :data           (dissoc data :dawn/state)})
         context         (if-let [trigger (:trigger event)]
                           (-> context
-                              (util/add-message :info (str trigger))
                               (util/add-message :info (str "Executing event handler" (when-let [tag (:event trigger)] (str ": " tag))))
                               (-process-trigger-action trigger))
                           context)
