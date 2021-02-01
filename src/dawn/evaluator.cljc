@@ -4,6 +4,14 @@
             [dawn.types :as types]
             [erinite.utility.xf :as xf]))
 
+(defn -vars
+  "Get a list of variables"
+  [context]
+  {:static (->> (:static context)
+                (map (juxt first (comp set keys second)))
+                (into {}))
+   :dynamic (set (keys (:data context)))})
+
 (defn rearange-vararg-params [params expected-count]  
   (conj (vec (take (dec expected-count) params)) (subvec params (dec expected-count))))
 
@@ -27,6 +35,7 @@
                    :function (dissoc func :fn)
                    :parameters params
                    :lib (types/lib func-obj)
+                   :variables (-vars context)
                    :metadata (meta node)
                    :message (str "Invalid number of arguments. Expected " (count (:params func)) " got " (count params))}))))))
 
@@ -71,9 +80,6 @@
    :bit-or bit-or
    :bit-xor bit-xor
    :bit-shl bit-shift-left
-   :bit-shr bit-shift-right
-   :bit-clear bit-clear
-   :bit-set bit-set
    :bit-flip bit-flip
    :bit-test bit-test})
 
@@ -91,6 +97,7 @@
                :variable (name var-name)
                :variable-type var-type
                :metadata (meta node)
+               :variables (-vars context)
                :message (str "Could not read undefined variable '" (when (= var-type :dynamic) "#") (name var-name) "'")}))))
 
 (defn evaluate
@@ -129,13 +136,15 @@
                               :type :divide-by-zero
                               :operation [lhs (symbol value) rhs]
                               :metadata (meta node)
-                              :message "Attempt to divide by zero"}))
+                              :variables (-vars context)
+                              :message "Attempt to divide by zero"})):vars (-vars context)
                    (when (or (nil? lhs)
                              (nil? rhs))
                      (throw+ {:error ::arithmetic
                               :type :nil
                               :operation [lhs (symbol value) rhs]
                               :metadata (meta (if (nil? lhs) left right))
+                              :variables (-vars context)
                               :message (str "'" ((xf/when keyword? name) value) "' could not be applied to nil")}))
                    ((get binary-operators value) lhs rhs))
       ; Ternary
@@ -150,6 +159,7 @@
   ; TODO: Send to datadog
   (println "Evaluation error in:" node-type args)
   (println "Metadata:" (meta node))
+  (println "Local Data:" (:data context))
   (println "Exception:" e)
   (println))))
 

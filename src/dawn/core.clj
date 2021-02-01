@@ -26,8 +26,8 @@
   "Loads a TOML string to create a strategy ready for execution."
   [source]
   (parser/load-toml
-    (parser/make-parser)
-    source))
+   (parser/make-parser)
+   source))
 
 (defn load-file
   [file]
@@ -60,6 +60,7 @@
                 e
                 (assoc
                  (select-keys e [:type :variable :variable-type :function :operation :parameters :lib])
+                 :variables (:variables e)
                  :what (:error e)
                  :path (:object-path e)))
      ; Human readable error
@@ -86,45 +87,60 @@
         :result {:messages [(util/make-message :error (str message " in " path))]}}))))
 
 
+(defn run-once
+  "Debug tool, run the script once, printing the results and returning context ready to run againk"
+  ([ctx] (run-once ctx {}))
+  ([ctx changes]
+   (let [{:keys [strategy continue? instance input-data data event] :as ctx} (merge-with merge ctx changes)]
+     (when continue?
+       (println)
+       (println "------------------------------------------------------------")
+       (let [retval (execute strategy (assoc instance :data data) (assoc input-data :event event))]
+         (case (:type retval)
+           :result (let [{:keys [orders messages data watch]} (:result retval)]
+                     (println "Orders:")
+                     (clojure.pprint/pprint orders)
+                     (println "Watching:")
+                     (clojure.pprint/pprint watch)
+                     (println "Messages:")
+                     (clojure.pprint/pprint messages)
+                     (assoc ctx :data data))
+           :error  (let [{:keys [human machine]} (:error retval)]
+                     (println "Messages:")
+                     (clojure.pprint/pprint (get-in retval [:result :messages]))
+                     (println "ERROR:" (:message human))
+                     (println "In:" (:path human))
+                     (println)
+                     (println (:source human))
+                     (println (:highlight human))
+                     (println)
+                     (println "Additional Details:")
+                     (clojure.pprint/pprint machine)
+                     (println)
+                     (assoc ctx continue? false))))))))
+
+(defn -show-summary
+  [{:keys [data]}]
+  (println)
+  (println "Final Data:")
+  (clojure.pprint/pprint data))
+
 #_
-(let [strategy (load-file "resources/test_strategy.toml")
-      instance {:inputs {:in1 0
-                         :in2 0}
-                :config {:order-sizes          [10 10 10 10]
-                         :tp-trail-threshold   100
-                         :trailing-stop-offset 10}
-                :account {:balance  1000
-                          :leverage 1}}]
-  (loop [data {}
-         counter 2
-         event {:id :1.0/fill
-                :status :filled
-                :order {:tag "order"}}]
-    (let [retval (execute strategy (assoc instance :data data :event event))]
-      (case (:type retval)
-        :result (let [{:keys [orders messages data watch]} (:result retval)]
-                  (println "---")
-                  (println "Orders:")
-                  (pprint orders)
-                  (println "Watching:")
-                  (pprint watch)
-                  (println "Messages:")
-                  (pprint messages)
-                  (if (pos? counter)
-                    (recur data (dec counter) nil)
-                    (do
-                      (println)
-                      (println "Final Data:")
-                      (pprint data))))
-        :error  (let [{:keys [human machine]} (:error retval)]
-                  (println "Messages:")
-                  (pprint (get-in retval [:result :messages]))
-                  (println "ERROR:" (:message human))
-                  (println "In:" (:path human))
-                  (println)
-                  (println (:source human))
-                  (println (:highlight human))
-                  (println)
-                  (println "Additional Details:")
-                  (println machine)
-                  (println))))))
+(-> {:strategy (load-file "resources/basic-strategy.toml")
+     :continue? true
+     :instance {:config {:order-size 100
+                         :stop-distance 150
+                         :tp-distances [100 200]}}
+     :input-data {:inputs {:enter-long false}
+                  :account {:balance  1000
+                            :position 10
+                            :avg-price 200
+                            :leverage 1}}}
+    (run-once)
+    (run-once {:input-data {:inputs {:enter-long true}}})
+    (run-once {:event {:id :0.0/fill
+                       :status :filled
+                       :order {:tag "long"}}})
+
+    (-show-summary))
+

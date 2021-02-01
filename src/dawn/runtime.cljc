@@ -143,13 +143,19 @@
     (reduced context)
     context))
 
-(defn -apply-state
-  "Apply the actions of a single state to the context."
+(defn -evaluate-state-entry
+  "Evaluate a states messages, data and triggers. Should be done any time a new state is entered."
   [context state]
   (-> context
       (-eval-message (:note state))
       (update :data merge (-kv-evaluate context (:data state)))
-      (-evaluate-triggers state)
+      (-evaluate-triggers state)))
+
+(defn -apply-state
+  "Apply the actions of a single state to the context."
+  [context state]
+  (-> context
+      (-evaluate-state-entry state)
       (-process-orders (:orders state))
       (-check-state-change (:current-state context))))
 
@@ -204,6 +210,20 @@
                  (assoc context :new-state? true)))
         context))))
 
+(defn -process-event-trigger
+  "When an event cuases a trigger to execute, its action needs to be evaluated and if the action causes a state change, that new state must be partially evaluated.
+   This is because the normal execution loop cannot detect that a state change happened, since it occurs outside of the loop, and therefore will only evaluate
+   the states orders. If this happens, the messages, data and triggers need to be evaluated before the normal execution loop is run."
+  [context states trigger]
+  (let [current-state (:current-state context)
+        context (-> context
+                    (util/add-message :info (str "Executing event handler" (when-let [tag (:event trigger)] (str ": " tag))))
+                    (-process-trigger-action trigger))
+        new-state (:current-state context)]
+    (if (not= current-state new-state) ; State has changed, evaluate messages, data and state triggers
+      (-evaluate-state-entry context (get states new-state))
+      context)))
+
 (defn execute
   "Construct a context map from a given strategy, data, configuration and inputs, then runs the execution loop against this context."
   [{:keys [initial-data states]} {:keys [config data]} {:keys [inputs account market event]}]
@@ -225,9 +245,7 @@
                          :new-state?     (not= previous-state current-state)
                          :data           (dissoc data :dawn/state)})
         context         (if-let [trigger (:trigger event)]
-                          (-> context
-                              (util/add-message :info (str "Executing event handler" (when-let [tag (:event trigger)] (str ": " tag))))
-                              (-process-trigger-action trigger))
+                          (-process-event-trigger context states trigger)
                           context)
         results        (-run-execution-loop initial-state states context)
         end-state      (:current-state results)]
