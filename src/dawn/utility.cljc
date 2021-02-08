@@ -6,7 +6,7 @@
   [category message]
   {:category category
    :time (t/now)
-   :text message})
+   :text (or message "")})
 
 (defn add-message
   "Adds a new message at current time to the log"
