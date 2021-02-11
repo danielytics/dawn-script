@@ -3,10 +3,13 @@
 
 (defn make-message
   "Create a new message map at current time"
-  [category message]
-  {:category category
-   :time (t/now)
-   :text (or message "")})
+  ([category message]
+   (make-message category message nil))
+  ([category message details]
+   (cond-> {:category category
+            :time (t/now)
+            :text (or message "")}
+     details (assoc :details details))))
 
 (defn add-message
   "Adds a new message at current time to the log"
