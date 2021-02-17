@@ -80,8 +80,12 @@
    :bit-or bit-or
    :bit-xor bit-xor
    :bit-shl bit-shift-left
+   :bit-shr bit-shift-right
    :bit-flip bit-flip
    :bit-test bit-test})
+
+(def non-nill-operators ; Operators whose arguments cannot be null
+  #{:+ :- :* :/ :percent :mod :pow :> :>= :< :<= :bit-and :bit-or :bit-xor :bit-shl :bit-shr :bit-flip :bit-test})
 
 (defn -read-var
   "Read a variable, whether static or dynamic. Reports undefined variable if variable wasn't found in context"
@@ -138,8 +142,9 @@
                               :metadata (meta node)
                               :variables (-vars context)
                               :message "Attempt to divide by zero"})):vars (-vars context)
-                   (when (or (nil? lhs)
-                             (nil? rhs))
+                   (when (or (and (or (nil? lhs) (nil? rhs))
+                                  (contains? non-nill-operators value))
+                             (and (= value :in) (nil? rhs)))
                      (throw+ {:error ::arithmetic
                               :type :nil
                               :operation [lhs (symbol value) rhs]
