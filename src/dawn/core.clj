@@ -46,7 +46,6 @@
   "Mutates the event object to include its trigger logic, if there is any"
   [strategy event]
   (-> event
-      (select-keys [:status :order])
       (assoc :trigger (when-let [trigger (get-in strategy [:triggers (:id event)])]
                         (update trigger :event #(str (get-in event [:order :tag]) "/" %))))))
 
