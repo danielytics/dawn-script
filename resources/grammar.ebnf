@@ -81,7 +81,7 @@ list-literal            = <'['> ws? (expression (ws? <','> ws? expression)* ws?)
 map-literal             = <'{'> ws? (key-value-pair (ws? <','> ws? key-value-pair)* ws?)? <'}'>
 key-value-pair          = identifier ws? <':'> ws? expression
 function-literal        = (null-arguments | argument-list) ws? <'->'> ws? (expression | block)
-argument-list           = identifier type-annotation? (ws? <','> ws? identifier type-annotation?)*
+argument-list           = (identifier type-annotation?) | (<'('> ws? identifier type-annotation? (ws? <','> ws? identifier type-annotation?)*  ws? <')'>)
 <null-arguments>        = <'('> ws? <')'>
 <slice-value>           = variable | integer | string | boolean | keyword-value
 

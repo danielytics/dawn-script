@@ -1,6 +1,10 @@
 (ns dawn.utility
   (:require [tick.alpha.api :as t]))
 
+(defn timestamp
+  []
+  (t/long (t/now)))
+
 (defn make-message
   "Create a new message map at current time"
   ([category message]

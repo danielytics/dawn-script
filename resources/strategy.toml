@@ -61,8 +61,6 @@ description = "Line tracking strategy with lots of smarts"
 [data]
     upper-lines = ["upper1", "upper2", "upper3", "upper4"]
     lower-lines = ["lower1", "lower2", "lower3", "lower4"]
-    message = ""
-    a = 10
 
 # Strategy logic
 [states]
@@ -77,18 +75,11 @@ description = "Line tracking strategy with lots of smarts"
     [[states.state]]
         id = "not-in-position"
 
-        # This is just for testing, not actulaly part of this strategy
-        [[states.state.trigger]]
-            when = "=> #a > inputs.x"
-            to-state = "another-state"
-            note.text = "Changing State"
-            data.message = "=> #message ++ 'Hello!'"
-
         # Sync eight orders with the four upper and four lower line values
         [[states.state.orders]]
             # Duplicate this order for each line (#line will be bound to each value in the list in turn)
             foreach.line = "=> #upper-lines ++ #lower-lines"
-            tag = "=> 'entry/' ++ #line"
+            tag = "entry/#line"
             type = "limit"
             side = "=> #line in #upper-lines ? 'sell' : 'buy'"
             # List.find will return a value in range 0..7, by taking modulus 4, any value in range 4..7 will be changed to 0..3
@@ -100,15 +91,6 @@ description = "Line tracking strategy with lots of smarts"
             # On order fill, transition to new state "in-position"
             [states.state.orders.on.fill]
                 to-state = "in-position"
-    
-    [[states.state]]
-        id = "another-state"
-        [[states.state.triggers]]
-            when = "=> true"
-            to-state = "not-in-position"
-            note.category = "error"
-            note.text = "Changing back"
-            #data.a = 0
 
     ##########
     # State: in-position
@@ -117,12 +99,6 @@ description = "Line tracking strategy with lots of smarts"
     ##########
     [[states.state]]
         id = "in-position"
-        # The "in-position" state is composed of two substates, a substate consists inherits its parent state settings
-        sub-states = [
-            "in-position/normal",
-            "in-position/trailing"
-        ]
-        initial = "in-position/normal"
 
         # Data which is shared by sub-states
         data.tp-count = 0 # Track which TP
@@ -136,19 +112,24 @@ description = "Line tracking strategy with lots of smarts"
     ##########
     [[states.state]]
         id = "in-position/normal"
+        # This is a sub-state of "in-position" and shares its settings and data
+        parent = "in-position"
+
+        data.tp-price = "=> account.position > 0 ? inputs.long-tp : inputs.short-tp"
+
+        # This condition becomes false when the close price is within the threshold, cancelling the take profit order and triggering a state change
+        [[states.state.trigger]]
+            when = "=> [Math.abs: market.close - #tp-price] <= config.tp-trail-threshold"
+            to-state = "in-position/trailing"
+            data.tp-stop-offset = "=> self.price - orders.stop-loss.price"
 
         [[states.state.orders]]
             tag = "take-profit"
             type = "limit"
             side = "=> account.position > 0 ? 'sell' : 'buy'"
             contracts = "=> config.tp-sizes.#tp-count"
-            price = "=> account.position > 0 ? inputs.long-tp : inputs.short-tp"
+            price = "=> #tp-price"
             instructions = ["post-only"]
-            # This condition becomes false when the close price is within the threshold, cancelling this order, triggering a state change
-            when = "=> [Math.abs: market.close - self.price] > config.tp-trail-threshold"
-            [states.state.orders.on.cancel] # TODO: is it risky to piggy-back on cancellation to switch to trailing? what if the order is cancelled for another reason?
-                to-state = "in-position/trailing"
-                data.tp-stop-offset = "=> self.price - orders.stop-loss.price"
             [states.state.orders.on.fill]
                 to-state = "=> #tp-count < 2 ? 'in-position/normal' : 'not-in-posision'"
                 data.tp-count = "=> #tp-count + 1"
@@ -182,6 +163,8 @@ description = "Line tracking strategy with lots of smarts"
     ##########
     [[states.state]]
         id = "in-position/trailing"
+        # This is a sub-state of "in-position" and shares its settings and data
+        parent = "in-position"
 
         [[states.state.orders]]
             tag = "trailing-stop-loss"

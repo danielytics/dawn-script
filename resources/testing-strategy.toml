@@ -1,0 +1,16 @@
+[data]
+    a = 0
+
+[states]
+    initial = "start"
+
+    [[states.state]]
+        id = "start"
+
+        [[states.state.trigger]]
+            when = true
+            note.text = "=> [List.remove: [1, 2, 3], x -> [Math.is-even: x]]"
+            to-state = "end"
+    
+    [[states.state]]
+        id = "end"

@@ -53,7 +53,9 @@ description = "Scalper for semi-manual trading"
     move-stop-down = { type = "alert" }
 
 [data]
-    take-profit-amounts = "=> [config.take-proconfig.take-profit-sizesfit-sizes.0, config.take-profit-sizes.1, 1.0]"
+    # Following two lines are the same:
+    #take-profit-amounts = "=> [List.new: config.take-profit-sizes.0, config.take-profit-sizes.1, 1.0]"
+    take-profit-amounts = ["=> config.take-profit-sizes.0", "=> config.take-profit-sizes.1", 1.0]
     stop-offset = 0
 
 [states]
@@ -89,7 +91,7 @@ description = "Scalper for semi-manual trading"
         parent = "base"
 
         [[states.state.order]]
-            tag = "=> 'long-entry"
+            tag = "long-entry"
             type = "market"
             side = "buy"
             contracts = "=> config.entry-size"

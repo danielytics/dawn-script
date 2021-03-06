@@ -17,6 +17,18 @@
   [left operator right]
   [:binary-op (keyword operator) left right])
 
+(defn -transform-fn-obj-body
+  "Transform the body of a function object so that arguments are taken from args.* static lookup"
+  [args ast]
+  (insta/transform
+   {:static-var (fn [var-name]
+                  (if (contains? args var-name)
+                    [:static-lookup [:static-var :args] [var-name]]
+                    [:static-var var-name]))
+    :call (fn [which func-args opts]
+            [:call which (-transform-fn-obj-body args func-args) opts])}
+   ast))
+
 (defn parse
   "Takes an instaparse parser function and a source string and returns an AST"
   [parser source];
@@ -37,6 +49,10 @@
                                 (if (seq fields)
                                   [:static-lookup func (vec fields)]
                                   func))
+           :function-literal  (fn [[_ & args] ast]
+                                (println ast)
+                                [:function {:args (vec args)
+                                            :ast (-transform-fn-obj-body (set args) ast)}])
            :unary-expression  (fn [op v] [:unary-op (keyword op) v])
            :binop-plusminus   -transform-binary-op
            :binop-muldiv      -transform-binary-op
@@ -151,6 +167,13 @@
     [[] (first path)]
     (rest path))))
 
+(defn -transform-slashbang
+  "Transform \".../#...\" into \"=> '.../' ++ #...]\""
+  [text]
+  (if-let [match (re-matches #"^(.*\/)(\#.*)$" text)]
+    (apply format "=> '%s' ++ %s" (next match))
+    text))
+
 (declare ^:dynamic parse-errors)
 
 (defmulti to-clj (fn [obj _ _] (type obj)))
@@ -160,7 +183,7 @@
 (defmethod to-clj java.lang.String
   ;; A string, process it by applying the parser function
   [x path parser]
-  (let [results (parse parser x)
+  (let [results (parse parser (-transform-slashbang x))
         path (-clean-path path)]
     (if (insta/failure? results)
       (let [error (insta/get-failure results)]

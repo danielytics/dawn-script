@@ -1,6 +1,7 @@
 (ns dawn.builtins
   (:require [clojure.string :as string]
             [clojure.set :as sets]
+            [dawn.utility :as util]
             [dawn.libs.core :as core-lib]
             [dawn.libs.math :as math-lib]
             [dawn.libs.list :as list-lib]
@@ -51,17 +52,22 @@
                              :params ["function"]}
                     :params [:context :any]
                     :return :text
-                    :fn     core-lib/doctext}}
+                    :fn     core-lib/doctext}
+          :value   {:doc    {:text "Returns the first non-nil value"
+                             :params ["a", "b", "..."]}
+                    :params [:varargs]
+                    :return :any
+                    :fn #(some identity %)}}
    :Math {:floor       {:doc    {:text   "Round float down to integer (towards negative infinity)"
                                  :params ["value"]}
                         :params [:float]
                         :return :integer
-                        :fn     nil}
+                        :fn     math-lib/floor}
           :ceil        {:doc    {:text   "Round float up to integer (towards positive infinity)"
                                  :params ["value"]}
                         :params [:float]
                         :return :integer
-                        :fn     nil}
+                        :fn     math-lib/ceil}
           :round       {:doc    {:text   "Round float to nearest integer (ties are rounded away from zero)"
                                  :params ["value"]}
                         :params [:float]
@@ -101,7 +107,17 @@
                                  :params ["value"]}
                         :params [:number]
                         :return :number
-                        :fn     (complement zero?)}}
+                        :fn     (complement zero?)}
+          :is-even     {:doc    {:text   "Is the input value even"
+                                 :params ["value"]}
+                        :params [:number]
+                        :return :number
+                        :fn     even?}
+          :is-odd      {:doc    {:text   "Is the input value odd"
+                                 :params ["value"]}
+                        :params [:number]
+                        :return :number
+                        :fn     odd?}}
    :Text {:upper-case    {:doc    {:text   "Convert input text to all upper-case"
                                    :params ["text"]}
                           :params [:text]
@@ -137,7 +153,12 @@
                           :params [:text :text]
                           :return :integer
                           :fn     #(.indexOf %1 %2)}}
-   :List {:find      {:doc    {:text   "Return the index of value in the list, or -1 if not found"
+   :List {:new       {:doc    {:text "Retuern a new list containing the passed with elements"
+                               :params ["a", "..."]}
+                      :params [:varargs]
+                      :return :list
+                      :fn     #(into [] %)}
+          :find      {:doc    {:text   "Return the index of value in the list, or -1 if not found"
                                :params ["list" "value"]}
                       :params [:list :any]
                       :return :integer
@@ -172,11 +193,21 @@
                       :params [:list]
                       :return :any
                       :fn     first}
+          :second    {:doc    {:text "Return the second element of a list"
+                               :params ["list"]}
+                      :params [:list]
+                      :return :any
+                      :fn     second}
           :last      {:doc    {:text   "Return the last element of list"
                                :params ["list"]}
                       :params [:list]
                       :return :any
                       :fn     last}
+          :get       {:doc    {:text   "Returns the n'th element of the list. If n is negative, count from the end"
+                               :params ["list" "n"]}
+                      :params [:list :integer]
+                      :return :any
+                      :fn     list-lib/get-element}
           :sum       {:doc    {:text   "Return the sum of all elements in list"
                                :params ["list"]}
                       :params [:list/number]
@@ -202,21 +233,26 @@
                       :params [:list :list :any]
                       :return :list
                       :fn     assoc-in}
-          :map       {:doc    {:text   "Return the list with function mapped over each value"
+          :transform {:doc    {:text   "Return the list with each value transformed by function"
                                :params ["list" "function"]}
-                      :params [:list :any]
+                      :params [:context :list :any]
                       :return :list
-                      :fn     nil}
-          :filter    {:doc    {:text   "Return the list with only the elements for which function returns true"
+                      :fn     list-lib/transform-elems}
+          :keep      {:doc    {:text   "Return the list with only the elements for which function returns true"
                                :params ["list" "function"]}
-                      :params [:list :any]
+                      :params [:context :list :any]
                       :return :list
-                      :fn     nil}
+                      :fn     list-lib/keep-elems}
+          :remove    {:doc    {:text   "Return the list with the elements for which function returns true removed"
+                               :params ["list" "function"]}
+                      :params [:context :list :any]
+                      :return :list
+                      :fn     list-lib/remove-elems}
           :collect   {:doc    {:text   "Collect the values in list into a single returned value by calling function on the running collecton and each successive value"
-                               :params ["list" "function" "initial-collection-value"]}
-                      :params [:list :any :any]
+                               :params ["list" "initial-collection-value" "function"]}
+                      :params [:context :list :any :any]
                       :return :any
-                      :fn     nil}
+                      :fn     list-lib/collect-elems}
           :avg       {:doc    {:text   "Return the average (arithmetic mean) value of the elements in list"
                                :params ["list"]}
                       :params [:list/number]
@@ -262,26 +298,26 @@
                       :params [:list]
                       :return :integer
                       :fn     count}
-          :reshape   {:doc    {:text   "Return a reshaped version of list, the shape is how many elements each dimension should have"
-                               :params ["list" "shape"]}
-                      :params [:list :list]
-                      :return :list
-                      :fn     nil}
-          :shape     {:doc    {:text   "Return the shape of an input list, the shape is how many elementseach dimension has"
-                               :params ["list"]}
-                      :params [:list]
-                      :return :list
-                      :fn     nil}
           :zip       {:doc {:text "Converts a map where all values are lists into a list of maps, where each map has one element taken from each list"
                             :params ["map"]}
                       :params [:map]
                       :return :map
-                      :fn list-lib/zip}}
-   :Set  {:union        {:doc    {:text   "Return the set union of two input lists (elements from both 'a' and 'b' without duplicates)"
+                      :fn list-lib/zip}
+          :unzip     {:doc {:text "Converts a list of maps into a map of lists, where each value in the input lists is inserted into the list with the matching key (opposite of zip)"
+                            :params ["list"]}
+                      :params [:list]
+                      :return :map
+                      :fn list-lib/unzip}}
+   :Set  {:new          {:doc    {:text "Retuern a new set containing the passed with elements"
+                                  :params ["a", "..."]}
+                         :params [:varargs]
+                         :return :list
+                         :fn     #(into #{} %)}
+          :union        {:doc    {:text   "Return the set union of two input lists (elements from both 'a' and 'b' without duplicates)"
                                   :params ["a" "b"]}
                          :params [:list :list]
                          :return :list
-                         :fn     #(vec (sets/union (set %1) %2))}
+                         :fn     #(vec (sets/union (set %1) (set %2)))}
           :intersection {:doc    {:text   "Return the elements that are in both 'a' and 'b'"
                                   :params ["a" "b"]}
                          :params [:list :list]
@@ -291,7 +327,7 @@
                                   :params ["a" "b"]}
                          :params [:list :list]
                          :return :list
-                         :fn     #(vec (sets/difference (set %1) %2))}}
+                         :fn     #(vec (sets/difference (set %1) (set %2)))}}
    :Type {:is-integer {:doc    {:text   "Return whether or not input is an integer"
                                 :params ["input"]}
                        :params [:any]
@@ -327,6 +363,56 @@
                        :params [:any]
                        :return :boolean
                        :fn     map?}}
+   :Time   {:now           {:doc    {:text "Returns the current time, in seconds since the epoch"
+                                     :params []}
+                            :params []
+                            :return :integer
+                            :fn  util/timestamp}
+            :since         {:doc {:text "Returns the number of seconds since a time"
+                                  :params ["time"]}
+                            :params [:context :integer]
+                            :return :integer
+                            :fn  #(- %2 (get-in %1 [:static :time]))}
+            :days          {:doc {:text "Returns the number of days in a time"
+                                  :params ["time"]}
+                            :params [:integer]
+                            :return :integer
+                            :fn  #(int (/ %  86400))} ; (* 60 60 24) = 86400
+            :hours         {:doc {:text "Returns the number of hours a time"
+                                  :params ["time"]}
+                            :params [:integer]
+                            :return :integer
+                            :fn  #(int (/ % 3600))} ; (* 60 60) = 600
+            :minutes       {:doc {:text "Returns the number of minutes a time"
+                                  :params ["time"]}
+                            :params [:integer]
+                            :return :integer
+                            :fn  #(int (/ % 60))}
+            :split         {:doc {:text "Split a time into [days, hours, minutes, seconds]"
+                                  :params ["time"]}
+                            :params [:integer]
+                            :return :integer
+                            :fn  #(constantly 0)}
+            :day-of-week   {:doc {:text "Returns the day of the week represented by a time (0 = monday, 6 = sunday)"
+                                  :params ["time"]}
+                            :params [:integer]
+                            :return :integer
+                            :fn  #(constantly 0)}
+            :hour-of-day   {:doc {:text "Returns the hour of the day represented by a time"
+                                  :params ["time"]}
+                            :params [:integer]
+                            :return :integer
+                            :fn  #(constantly 0)}
+            :minute-of-day {:doc {:text "Returns the minute of the day represented by a time"
+                                  :params ["time"]}
+                            :params [:integer]
+                            :return :integer
+                            :fn  #(constantly 0)}
+            :second-of-day {:doc {:text "Returns the second of the day represented by a time"
+                                  :params ["time"]}
+                            :params [:integer]
+                            :return :integer
+                            :fn  #(constantly 0)}}
    :Trades {:max-contracts {:doc    {:text   "Calculate maximum contracts possible with given balance at given price"
                                      :params ["balance" "price"]}
                             :params [:context :float :float]

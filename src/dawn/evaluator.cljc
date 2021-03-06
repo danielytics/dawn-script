@@ -114,6 +114,7 @@
       :float value
       :string value
       :boolean value
+      :function value
       :list-literal (mapv #(evaluate context %) args)
       :map-literal (into {} (for [[k v] value] [k (evaluate context v)]))
       ; Variable access

@@ -39,8 +39,9 @@
                      (load-file "resources/test_strategy.toml")
                      [:states "start" :trigger 0 :note :text]))
 
-#_(clojure.pprint/pprint
-   (:config (load-file "resources/strategy.toml")))
+#_
+(clojure.pprint/pprint
+ (load-file "resources/test_strategy.toml"))
 
 (defn -set-event
   "Mutates the event object to include its trigger logic, if there is any"
@@ -125,7 +126,11 @@
   (clojure.pprint/pprint data))
 
 #_
-(-> {:strategy (load-file "resources/basic-strategy.toml")
+(clojure.pprint/pprint
+ (load-file "resources/testing-strategy.toml"))
+
+#_
+(-> {:strategy (load-file "resources/testing-strategy.toml")
      :continue? true
      :instance {:config {:order-size 100
                          :stop-distance 150

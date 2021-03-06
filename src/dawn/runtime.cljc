@@ -232,6 +232,7 @@
                                  :config   config
                                  :event    event
                                  :market   market
+                                 :time     (util/timestamp)
                                  :account  account}}
         previous-state (:dawn/state data)
         data           (if previous-state data (-kv-evaluate static-data initial-data))
@@ -252,6 +253,7 @@
     (-> results
         (select-keys [:messages :data :orders])
         (update :orders (comp vec vals))
+        (assoc :tags (when (= initial-state end-state) (:dawn/orders data)))
         (assoc :watch (:watch (get states end-state)))
         (assoc-in [:data :dawn/state] end-state)
         (assoc-in [:data :dawn/orders] (set (keys (:orders results)))))))

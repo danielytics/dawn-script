@@ -1,6 +1,5 @@
 (ns dawn.libs.trades)
 
-
 (defn max-contracts
   [context balance price]
   (let [leverage            (get-in context [:static :account :leverage])

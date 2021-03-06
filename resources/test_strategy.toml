@@ -29,7 +29,7 @@ description = "Strategy to test the dawn scripting engine"
 [functions]
     [functions.sma]
         params = {x = "number"}
-        formula = "=> #x "
+        formula = "=> #x + [test]"
         action.to-state = "=> #result"
 
 [states]
@@ -40,7 +40,7 @@ description = "Strategy to test the dawn scripting engine"
 
         [[states.state.trigger]]
             when = "=> #counter < 2"
-            data.counter = "=> #counter + 1"
+            data.counter = "=> #counter + [test: a -> a + 1]"
             note.text = "=> [text: 'Counter = ', #counter]"
             to-state = "next"
     
@@ -59,7 +59,7 @@ description = "Strategy to test the dawn scripting engine"
 
 
         [[states.state.orders]]
-            tag         = "order"
+            tag         = "order/#a"
             type        = "market"
             side        = "buy"
             contracts   = 100
