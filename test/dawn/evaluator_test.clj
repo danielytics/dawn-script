@@ -43,6 +43,7 @@
   
   ; Test binary expressions
   (doseq [[ast expected] {; or
+                          [:binary-op :or [:boolean true] [:boolean true]] true
                           [:binary-op :or [:boolean false] [:boolean true]] true
                           [:binary-op :or [:boolean true] [:boolean false]] true
                           [:binary-op :or [:boolean false] [:boolean false]] false
@@ -57,9 +58,9 @@
                           [:binary-op :and [:boolean false] [:boolean true]] false
                           [:binary-op :and [:boolean true] [:boolean true]] true
                           ; equality
-                          [:binary-op :== [:integer 1] [:integer 2]] false
+                          [:binary-op :== [:integer 1] [:integer 1]] true
                           [:binary-op :== [:string 1] [:integer 2]] false
-                          [:binary-op :!= [:integer 1] [:integer 2]] true
+                          [:binary-op :!= [:integer 1] [:integer 1]] false
                           [:binary-op :!= [:string 1] [:integer 2]] true
                           ; relational
                           [:binary-op :> [:integer 1] [:integer 2]] false
@@ -76,6 +77,7 @@
                           [:binary-op :<= [:integer 1] [:integer 2]] true
                           ; in 
                           [:binary-op :in [:integer 1] [:list-literal [:integer 1] [:integer 2] [:integer 3]]] true
+                          [:binary-op :in [:integer 4] [:list-literal [:integer 1] [:integer 2] [:integer 3]]] false
                           ; bitwise
                           [:binary-op :bit-and [:integer 12] [:integer 25]] 8
                           [:binary-op :bit-or [:integer 12] [:integer 25]] 29

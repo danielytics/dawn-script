@@ -144,11 +144,11 @@
     context))
 
 (defn -evaluate-state-entry
-  "Evaluate a states messages, data and triggers. Should be done any time a new state is entered."
+  "Evaluate a states data, messages and triggers. Should be done any time a new state is entered."
   [context state]
   (-> context
-      (-eval-message (:note state))
       (update :data merge (-kv-evaluate context (:data state)))
+      (-eval-message (:note state))
       (-evaluate-triggers state)))
 
 (defn -apply-state
@@ -228,12 +228,12 @@
   "Construct a context map from a given strategy, data, configuration and inputs, then runs the execution loop against this context."
   [{:keys [initial-data states]} {:keys [config data]} {:keys [inputs account market event]}]
   (let [static-data    {:libs builtins/libraries
-                        :static {:inputs   inputs
-                                 :config   config
-                                 :event    event
-                                 :market   market
+                        :static {:inputs   (or inputs {})
+                                 :config   (or config {})
+                                 :event    (or event {})
+                                 :market   (or market {})
                                  :time     (util/timestamp)
-                                 :account  account}}
+                                 :account  (or account {})}}
         previous-state (:dawn/state data)
         data           (if previous-state data (-kv-evaluate static-data initial-data))
         current-state  (:dawn/state data)

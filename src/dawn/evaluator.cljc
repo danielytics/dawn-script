@@ -7,7 +7,8 @@
 (defn -vars
   "Get a list of variables"
   [context]
-  {:static (->> (:static context)
+  {:static (->> :time
+                (dissoc (:static context))
                 (map (juxt first (comp set keys second)))
                 (into {}))
    :dynamic (set (keys (:data context)))})
@@ -82,10 +83,12 @@
    :bit-shl bit-shift-left
    :bit-shr bit-shift-right
    :bit-flip bit-flip
+   :bit-set bit-set
+   :bit-clear bit-clear
    :bit-test bit-test})
 
 (def non-nill-operators ; Operators whose arguments cannot be null
-  #{:+ :- :* :/ :percent :mod :pow :> :>= :< :<= :bit-and :bit-or :bit-xor :bit-shl :bit-shr :bit-flip :bit-test})
+  #{:+ :- :* :/ :percent :mod :pow :> :>= :< :<= :bit-and :bit-or :bit-xor :bit-shl :bit-shr :bit-flip :bit-test :bit-clear :bit-set})
 
 (defn -read-var
   "Read a variable, whether static or dynamic. Reports undefined variable if variable wasn't found in context"

@@ -6,20 +6,19 @@
 ; Sanity checks to make sure the TOML source gets loaded as expected and
 ; that the sructure doesn't accidentally get changed
 (deftest load-strategy-sanity-test
-  (let [strategy (dawn/load-string "name = \"test\"
-                                      [[config]]
-                                        name = \"c1\"
-                                        label = \"config 1\"
-                                        type = \"number\"
-                                        default = 11
-                                      [[config]]
-                                        name = \"c2\"
-                                        label = \"config 2\"
-                                        type = \"number\"
-                                        default = 22
+  (let [strategy (dawn/load-string "[[config]]
+                                      name = \"c1\"
+                                      label = \"config 1\"
+                                      type = \"number\"
+                                      default = 11
+                                    [[config]]
+                                      name = \"c2\"
+                                      label = \"config 2\"
+                                      type = \"number\"
+                                      default = 22
                                     
                                     [inputs]
-                                      i1 = { type = \"number\"
+                                      i1 = { type = \"number\" }
                                     
                                     [data]
                                       d1 = 33
@@ -50,9 +49,9 @@
                (:d1 data)))))
     
     (testing "states sanity checks"
-      (let [states (:states-by-id strategy)]
+      (let [states (:states strategy)]
         (is (= "start-state"
-               (get-in strategy [:states :initial])))
+               (get-in strategy [:initial-data :dawn/state])))
         (is (= "start-state"
                (get-in states ["start-state" :id])))
         (is (= 123
@@ -61,17 +60,17 @@
 
 (defn make-instance
   [{:keys [inputs account config]}]
-  {:inputs (merge {:in1 0
-                   :in2 1}
-                  inputs)
-   :accounts (merge {:balance 1000
-                     :leverage 1}
-                    account)
-   :config (merge {:con1 10
-                   :counter-start 1}
-                  config)
-   :orders {}
-   :data {}})
+  [{:config (merge {:con1 10
+                    :counter-start 1}
+                   config)
+    :data {}}
+   {:inputs (merge {:in1 0
+                    :in2 1}
+                   inputs)
+    :accounts (merge {:balance 1000
+                      :leverage 1}
+                     account)
+    :orders {}}])
 
 (def integration-test-source
   "[data]
@@ -120,7 +119,7 @@
 (deftest strategy-integration-test
   (let [strategy (dawn/load-string integration-test-source)]
     (testing "execute strategy"
-      (let [result (:result (dawn/execute strategy (make-instance {})))]
+      (let [result (:result (apply dawn/execute strategy (make-instance {})))]
         (is (= ["Executing state: start-state"
                 "Var1:1 Counter:1"
                 "Transitioning state to: end-state"
@@ -129,7 +128,7 @@
                (mapv :text (:messages result))))))
     
     (testing "child states"
-      (let [result (:result (dawn/execute strategy (make-instance {:config {:counter-start 4}})))]
+      (let [result (:result (apply dawn/execute strategy (make-instance {:config {:counter-start 4}})))]
         (is (= ["Executing state: start-state"
                  "Var1:1 Counter:4"
                  "Transitioning state to: child1"

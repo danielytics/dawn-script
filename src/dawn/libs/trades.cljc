@@ -15,3 +15,8 @@
 (defn price-offset
   [percent price]
   (+ price (* (/ percent 100.0) price)))
+
+(defn risk-based-contracts
+  [context balance price stop-price percentage-loss]
+  (/  (* balance price percentage-loss)
+      (/ stop-price price)))

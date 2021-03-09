@@ -50,7 +50,6 @@
                                   [:static-lookup func (vec fields)]
                                   func))
            :function-literal  (fn [[_ & args] ast]
-                                (println ast)
                                 [:function {:args (vec args)
                                             :ast (-transform-fn-obj-body (set args) ast)}])
            :unary-expression  (fn [op v] [:unary-op (keyword op) v])

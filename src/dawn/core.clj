@@ -41,7 +41,7 @@
 
 #_
 (clojure.pprint/pprint
- (load-file "resources/test_strategy.toml"))
+ (load-file "resources/strategy.toml"))
 
 (defn -set-event
   "Mutates the event object to include its trigger logic, if there is any"
