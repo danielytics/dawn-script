@@ -1,7 +1,7 @@
 # File is in TOML format: https://github.com/toml-lang/toml/blob/master/README.md
 # Text fields starting with => are code expressions that are executed to generate a value
-name = "SmartGrid"
-description = "Line tracking strategy with lots of smarts"
+
+# SmartGrid -- Line tracking strategy with lots of smarts
 
 # User-configurable settings
 [[config]]

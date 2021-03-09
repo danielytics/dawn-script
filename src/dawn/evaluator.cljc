@@ -113,6 +113,7 @@
   (try+
     (case node-type
       ; Literals
+      :nil nil
       :integer value
       :float value
       :string value

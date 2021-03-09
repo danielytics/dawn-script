@@ -358,16 +358,21 @@
                        :params [:any]
                        :return :boolean
                        :fn     vector?}
-          :is-map     {:doc    {:text   "Return whether or not input is a map"
+          :is-table   {:doc    {:text   "Return whether or not input is a table"
                                 :params ["input"]}
                        :params [:any]
                        :return :boolean
-                       :fn     map?}}
+                       :fn     map?}
+          :is-nil     {:doc    {:text   "Returns whether or not input is nil"
+                                :params ["input"]}
+                       :params [:any]
+                       :return :boolean
+                       :fn     nil?}}
    :Time   {:now           {:doc    {:text "Returns the current time, in seconds since the epoch"
                                      :params []}
-                            :params []
+                            :params [:context]
                             :return :integer
-                            :fn  util/timestamp}
+                            :fn  #(get-in % [:static :time])}
             :since         {:doc {:text "Returns the number of seconds since a time"
                                   :params ["time"]}
                             :params [:context :integer]

@@ -1,5 +1,4 @@
-name = "Test Strategy"
-description = "Strategy to test the dawn scripting engine"
+# Test Strategy -- Strategy to test the dawn scripting engine
 
 [[config]]
     name = "conf1"

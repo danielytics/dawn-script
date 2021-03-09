@@ -64,7 +64,8 @@ function-var            = static-var (ws? <'.'> ws? (integer | identifier))*
 slice-expression        = <'['> (slice-value (<':'> slice-value (<':'> slice-value)?)?)? <']'>
 
 (********** Values **********)
-<literal>               = number | boolean | string | keyword-value | list-literal | map-literal | function-literal
+<literal>               = nil | number | boolean | string | keyword-value | list-literal | map-literal | function-literal
+nil                     = <'nil'>
 string                  = <'\''> #'[^\'\\]*(\\.[^\'\\]*)*' <'\''>
 integer                 = '-'? numeric
 float                   = ('-'? numeric)? '.' numeric

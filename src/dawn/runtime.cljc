@@ -185,11 +185,14 @@
            ; The current state is always at the end of the key, so will be applied also
            (reduce -apply-state common-orders)))
     ; If not a new state, simply execute the current state
-    (-evaluate-triggers
-      (->> key
-           (map (comp :orders #(get states %)))
-           (reduce -process-orders context))
-      state)))
+    (let [previous-state (:current-state context)
+          context (-evaluate-triggers context state)]
+      ; If triggers did not change the state, then evaluate the orders. Otherwise just return the new context
+      (if (= (:current-state context) previous-state)
+        (->> key
+             (map (comp :orders #(get states %)))
+             (reduce -process-orders context))
+        context))))
 
 (defn -run-execution-loop
   "Run the execution loop by applying the current state to the context and repeating this as long as the state has changed to a new state.
