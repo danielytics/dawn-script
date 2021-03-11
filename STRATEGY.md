@@ -540,11 +540,440 @@ order/2   market   20
 order/4   market   40
 ```
 
+# **Strategy Tutorial**
+
+Lets build a strategy with the following signals:
+
+1. Enter Long
+   
+   market enter long and place a stop loss a set distance away
+2. Enter Short
+    
+    market enter short and place a stop loss a set distance away
+3. Exit
+    
+    close the position
+
+The entry size and stop loss distance are pre-configured values.
+
+First, we add the configurable values:
+
+```toml
+[[config]]
+    name = "entry-size"
+    label = "Entry Contracts"
+    type = "number"
+[[config]]
+    name = "stop-distance"
+    label = "Stop Distance"
+    type = "price"
+```
+
+This will create two variables: `config.entry-size` and `config.stop-distance`, whose values are set from the Reaper Bot UI.
+
+Next, we add the input signals:
+
+```toml
+[inputs]
+    enter-long = {type="event"}
+    enter-short = {type="event"}
+    exit = {type="event"}
+```
+
+This will create the variables `inputs.enter-long`, `inputs.enter-short` and `inputs.exit`. These variables will have a value of `nil`, except when a signal is received and then the variable corresponding to that signal will have a value of `true`.
+
+Now that the configurable data and the input signals are defined (that is, all of the data that gets sent into the bot from a user-controlled source), we can think about the states that the bot can be in. Working backwards from the input signals is a good approach:
+
+Both `enter-long` and `enter-short` enter a position, so that means we have at least two states: one where the bot is in a position and one where it is not. We will call these states `"in-position"` and `"not-in-position"`, but you could call them anything. Finally, the `exit` signal will close a position, leaving the bot in the `"not-in-position"` state. Since the bot doesn't start in a position, the initial state is the `"not-in-position"` state.
+
+
+```
+"not-in-position"    "in-position"
+    (enter-long)  ->
+    (enter-short) -> 
+                  <- (exit)
+```
+
+Now that we know what states the bot will have and how it will transition between them, we can define them:
+
+```toml
+[states]
+    initial = "not-in-position"
+
+    [[states.state]]
+        id = "not-in-position"
+
+        # Here, we want to respond to the "enter-long" and "enter-short" signals
+        # to place market orders
+
+    [[states.state]]
+        id = "in-position"
+
+        # Here, we want to place a stop-loss
+        # and also respond to the "exit" signal to close the position
+```
+
+Lets start with the entry signals. Its often easier to think of each of the signals separately and then clean up the strategy afterwards, so lets start with the `enter-long` signal:
+
+```toml
+[[states.state.orders]]
+    # This is a market entry
+    type = "market"
+    # Since we want to enter long, this is a buy order
+    side = "buy"
+    # The number of contracts are set by config.entry-size, we need to use an expression
+    contracts = "=> config.entry-size"
+```
+
+That defines the order we wish to place, when an `enter-long` signal is received. To make the order place when this happens (and not place when it doesn't happen), we can use the `when` field of the order to set a condition:
+
+```toml
+[[states.state.orders]]
+    # This order only gets placed when this condition evaluates to true:
+    when = "=> inputs.enter-long"
+    # The rest of the order details:
+    type = "market"
+    side = "buy"
+    contracts = "=> config.entry-size"
+```
+
+We must also give the order a tag. Every order needs to have a tag, as that is how Reaper Bot knows which order is which so that it can compare the declared orders to the existing orders in the exchange and perform the correct API requests. Since this is the `enter-long` singal, we will call this order `"Long Entry"`. Its always good to use descriptive names.
+
+```toml
+[[states.state.orders]]
+    # This orders identifier:
+    tag = "Long Entry"
+    # The rest of the order details:
+    when = "=> inputs.enter-long"
+    type = "market"
+    side = "buy"
+    contracts = "=> config.entry-size"
+```
+
+Finally, we want to transition to the `"in-position"` state, when this order fills. This can be done using the `on` field.
+
+```toml
+[[states.state.orders]]
+    tag = "Long Entry"
+    when = "=> inputs.enter-long"
+    type = "market"
+    side = "buy"
+    contracts = "=> config.entry-size"
+    # Add an order-status trigger to this order:
+    on.fill.to-state = "in-position"
+```
+
+Now, when this order is filled, the bot will switch states, allowing us to declare orders that should only be active when we're in a position, such as the stop loss.
+
+The order for the short entry is almost identical: the only things that change is that `inputs.enter-long` would be replaced with `inputs.enter-short`, the `side` set to `"sell"` and the tag changed to `"Short Entry"`. So, the full `"not-in-position"` block would look like this:
+
+```toml
+[[states.state]]
+    id = "not-in-position"
+
+    [[states.state.orders]]
+        tag = "Long Entry"
+        when = "=> inputs.enter-long"
+        type = "market"
+        side = "buy"
+        contracts = "=> config.entry-size"
+        on.fill.to-state = "in-position"
+    
+    [[states.state.orders]]
+        tag = "Short Entry"
+        when = "=> inputs.enter-short"
+        type = "market"
+        side = "sell"
+        contracts = "=> config.entry-size"
+        on.fill.to-state = "in-position"
+```
+
+Its worth noting that there are multiple ways to achieve the same thing. Listing out each individual entry as a separate order is clear and simple and you are encouraged to do so if that makes it easier to understand what is happening. However, its also possible to achieve the same goals with a single order. First, lets start with everything that is in common between both entries:
+
+```toml
+[[states.state.orders]]
+    # We can simply give it one tag
+    # since we will never have more than one "open" at once
+    tag = "Entry" 
+    # Common details:
+    type = "market"
+    contracts = "=> config.entry-size"
+    on.fill.to-state = "in-position"
+```
+
+The `when` condition is also straightforward: we want to place this if we get an `enter-long` **or** an `enter-short` signal:
+
+```toml
+[[states.state.orders]]
+    tag = "Entry" 
+    when = "=> inputs.enter-long or inputs.enter-short"
+    type = "market"
+    contracts = "=> config.entry-size"
+    on.fill.to-state = "in-position"
+```
+
+Finally, we need to set the `side` to `"buy"` if its an `enter-long`, otherwise `"sell"`. We can easily do this with the ternary operator:
+
+```toml
+[[states.state.orders]]
+    tag = "Entry" 
+    when = "=> inputs.enter-long or inputs.enter-short"
+    type = "market"
+    side = "=> inputs.enter-long ? 'buy' : 'sell'"
+    contracts = "=> config.entry-size"
+    on.fill.to-state = "in-position"
+```
+
+And... that's it!
+
+A single order is shorter and has only one place where changes might be made, making it impossible for the orders to get out of sync (that is, changing one and not the other) which may become important for complex orders. On the other hand, the single order is more complex and harder to understand at a glance, since you need to understand what the expressions are doing. This could become harder as the logic gets more complex. Its up to you to decide which one is clearer to you.
+
+Now that the `"not-in-position"` state is complete, lets move on to `"in-position"`. The first thing we want to do when we've entered a position (using the previously defined market orders) is to place a stop loss:
+
+```toml
+[[states.state.orders]]
+    tag = "Stop Loss"
+    type = "stop-market"
+    side = ???
+    # We don't know the side! It depends on the position.
+    contracts = ???
+    # We don't know the contracts! It depends on the position.
+    # Technically, we know that it will be config.entry-size, but by not relying
+    # on that, we can make the logic work even if you allow laddered entries, take
+    # profit orders etc.
+    trigger-price = ???
+    # We don't know the trigger price! It depends on the entry price.
+    instructions = ['close']
+    on.trigger.to-state = "not-in-position"
+```
+
+So, here we see some familiar fields: `tag` and `type` are set appropriately. `instruction` sets additional order execution instructions, in this case, the `close` instruction. Finally, the `on` field for reacting to status changes is used to change the state again. In this case, when the stop is `triggered` (we got stopped out of the position), then we want to transition back to the `"not-in-position"` state.
+
+The remaining fields depend on runtime data which we don't know, so we need to use expressions to calculate the correct values.
+
+Lets start with `side`, which is straightforward. Since this is a stop loss, its used to "exit" the position, so the side needs to be set to the opposite of what the entry order used: the side for exiting a long is `sell` and for exiting a short is `buy`. We can determine if we're in a long or a short in multiple ways.
+
+First, you could change the entry order to set a variable. Something like:
+
+```toml
+on.fill.data.direction = "long"
+```
+
+But for this tutorial we will check the value of your position instead: if the position is greater than 0 then its a long, otherwise its a short. We can access the position using the `account.position` variable.
+
+```toml
+[[states.state.orders]]
+    tag = "Stop Loss"
+    type = "stop-market"
+    # 'sell' if position is positive (long), otherwise 'buy'
+    side = "=> account.position > 0 ? 'sell' : 'buy'"
+    contracts = ???
+    trigger-price = ???
+    instructions = ['close']
+    on.trigger.to-state = "not-in-position"
+```
+
+Similarly, we can use `account.position` to set `contracts`, since we want to close the entire position. However, simply setting `contracts` to the position directly won't work, because if this is in a short, then the position will be negative but `contracts` must always be positive. We can use the `Math.abs` function to get the *"absolute value"* of the position: that is, always get a positive value. Functions have the syntax `[function: argument]`, so we can use `[Math.abs: account.position]` to get the position as a positive number.
+
+```toml
+[[states.state.orders]]
+    tag = "Stop Loss"
+    type = "stop-market"
+    side = "=> account.position > 0 ? 'sell' : 'buy'"
+    contracts = "=> [Math.abs: account.position]"
+    trigger-price = ???
+    instructions = ['close']
+    on.trigger.to-state = "not-in-position"
+```
+
+Finally, we want to define the trigger price as an offset from the average entry price. We can get the average entry price with `account.avg-price` and we have the offset amount in `config.stop-distance`. So the final price would be `account.avg-price - config.stop-distance` for longs and `account.avg-price + config.stop-distance` for shorts. We can simply plug that into the ternary operator similar to with `side`: `are-we-long ? (long-calculation) : (short-calculation)`
+
+`account.position > 0 ? (account.avg-price - config.stop-distance) : account.avg-price + config.stop-distance`
+
+But we can do slightly better, by returning negative `config.stop-distance` for long and positive for short:
+
+`account.avg-price + (account.position > 0 ? -config.stop-distance : config.stop-distance)`
+
+And plugging that into the order, we get:
+
+```toml
+[[states.state.orders]]
+    tag = "Stop Loss"
+    type = "stop-market"
+    side = "=> account.position > 0 ? 'sell' : 'buy'"
+    contracts = "=> [Math.abs: account.position]"
+    trigger-price = "=> account.avg-price + (account.position > 0 ? -config.stop-distance : config.stop-distance)"
+    instructions = ['close']
+    on.trigger.to-state = "not-in-position"
+```
+
+Great! The final piece of the puzzle is the `exit` signal, which works like a mashup of the entry signals and the stop loss. Copying the entry market order and tweaking it slightly, we get:
+
+```toml
+[[states.state.orders]]
+    tag = "Exit" 
+    when = "=> inputs.exit"
+    type = "market"
+    side = ???
+    contracts = ???
+    on.fill.to-state = "not-in-position"
+```
+
+And we already know how to set side and contracts from the stop loss.
+
+```toml
+[[states.state.orders]]
+    tag = "Exit" 
+    when = "=> inputs.exit"
+    type = "market"
+    side = "=> account.position > 0 ? 'sell' : 'buy'"
+    contracts = "=> [Math.abs: account.position]"
+    on.fill.to-state = "not-in-position"
+```
+
+So, the complete `"in-position"` state looks like this:
+
+```toml
+[[states.state]]
+    id = "in-position"
+
+    [[states.state.orders]]
+        tag = "Stop Loss"
+        type = "stop-market"
+        side = "=> account.position > 0 ? 'sell' : 'buy'"
+        contracts = "=> [Math.abs: account.position]"
+        trigger-price = "=> account.avg-price + (account.position > 0 ? -config.stop-distance : config.stop-distance)"
+        instructions = ['close']
+        on.trigger.to-state = "not-in-position"
+
+    [[states.state.orders]]
+        tag = "Exit" 
+        when = "=> inputs.exit"
+        type = "market"
+        side = "=> account.position > 0 ? 'sell' : 'buy'"
+        contracts = "=> [Math.abs: account.position]"
+        on.fill.to-state = "not-in-position"
+```
+
+**And we're done!**
+
+Putting it altogether, here is the full strategy:
+
+```toml
+[[config]]
+    name = "entry-size"
+    label = "Entry Contracts"
+    type = "number"
+[[config]]
+    name = "stop-distance"
+    label = "Stop Distance"
+    type = "price"
+
+[inputs]
+    enter-long = {type="event"}
+    enter-short = {type="event"}
+    exit = {type="event"}
+
+[states]
+    initial = "not-in-position"
+
+    [[states.state]]
+        id = "not-in-position"
+
+        [[states.state.orders]]
+            tag = "Long Entry"
+            when = "=> inputs.enter-long"
+            type = "market"
+            side = "buy"
+            contracts = "=> config.entry-size"
+            on.fill.to-state = "in-position"
+        
+        [[states.state.orders]]
+            tag = "Short Entry"
+            when = "=> inputs.enter-short"
+            type = "market"
+            side = "sell"
+            contracts = "=> config.entry-size"
+            on.fill.to-state = "in-position"
+
+    [[states.state]]
+        id = "in-position"
+
+        [[states.state.orders]]
+            tag = "Stop Loss"
+            type = "stop-market"
+            side = "=> account.position > 0 ? 'sell' : 'buy'"
+            contracts = "=> [Math.abs: account.position]"
+            trigger-price = "=> account.avg-price + (account.position > 0 ? -config.stop-distance : config.stop-distance)"
+            instructions = ['close']
+            on.trigger.to-state = "not-in-position"
+
+        [[states.state.orders]]
+            tag = "Exit" 
+            when = "=> inputs.exit"
+            type = "market"
+            side = "=> account.position > 0 ? 'sell' : 'buy'"
+            contracts = "=> [Math.abs: account.position]"
+            on.fill.to-state = "not-in-position"
+```
+
+Or for the single-entry version:
+
+```toml
+[[config]]
+    name = "entry-size"
+    label = "Entry Contracts"
+    type = "number"
+[[config]]
+    name = "stop-distance"
+    label = "Stop Distance"
+    type = "price"
+
+[inputs]
+    enter-long = {type="event"}
+    enter-short = {type="event"}
+    exit = {type="event"}
+
+[states]
+    initial = "not-in-position"
+
+    [[states.state]]
+        id = "not-in-position"
+
+        [[states.state.orders]]
+            tag = "Entry" 
+            when = "=> inputs.enter-long or inputs.enter-short"
+            type = "market"
+            side = "=> inputs.enter-long ? 'buy' : 'sell'"
+            contracts = "=> config.entry-size"
+            on.fill.to-state = "in-position"
+
+    [[states.state]]
+        id = "in-position"
+
+        [[states.state.orders]]
+            tag = "Stop Loss"
+            type = "stop-market"
+            side = "=> account.position > 0 ? 'sell' : 'buy'"
+            contracts = "=> [Math.abs: account.position]"
+            trigger-price = "=> account.avg-price + (account.position > 0 ? -config.stop-distance : config.stop-distance)"
+            instructions = ['close']
+            on.trigger.to-state = "not-in-position"
+
+        [[states.state.orders]]
+            tag = "Exit" 
+            when = "=> inputs.exit"
+            type = "market"
+            side = "=> account.position > 0 ? 'sell' : 'buy'"
+            contracts = "=> [Math.abs: account.position]"
+            on.fill.to-state = "not-in-position"
+```
+
 # **Scripting Reference**
 
 The scripting *expressions* allow you to generate values dynamically.
 
-Data Types:
+**Data Types:**
 
 * **number** ─ integer or decimal numbers like `10`, `-4`, `3.14`
 * **boolean** ─ `true` or `false`
@@ -552,12 +981,18 @@ Data Types:
 * **list** ─ a list of values like `[1, 2, 3, 4]`
 * **nil** ─ represents empty or non-existent data, has only one value: `nil`.
 
-Unary Operators:
+**Truthiness:**
+
+The values `false` and `nil` count as "false" and all other values count as "true".
+
+That means that if a condition (eg the `when` field of an order) evaluates to either `false` or `nil`, then that condition is counted as failed (the order with that `when` won't get generated) and any other value of any other data type is counted as true.
+
+**Unary Operators:**
 
 * **`-`** ─ negate a number: `-(1 + 1)` ⇨ `-2`
 * **`not`** ─ negate a boolean: `not true` ⇨ `false`, `not (1 == 2)` ⇨ `true`
 
-Binary Operators:
+**Binary Operators:**
 
 * **`+`** ─ Add two numbers: `3 + 2` ⇨ `5`
 * **`-`** ─ Subtract two numbers: `3 - 2` ⇨ `1`
@@ -578,7 +1013,7 @@ Binary Operators:
 * **`++`** ─ Concatenate two lists: `[1, 2] ++ [3, 4]` ⇨ `[1, 2, 3, 4]`
 * **`% of`** ─ Percentage: `25% of 200` ⇨ `50`, `(10 + 5)% of (50 * 8)` ⇨ `60`
 
-Ternary Operator:
+**Ternary Operator:**
 
 The ternary operator has the following syntax:
 
@@ -595,7 +1030,7 @@ data.foo = "=> inputs.signal ? 10 : 20
 If the `signal` input has been received, `foo` is set to `10`, otherwise it's set to `20`.
 
 
-Functions:
+**Functions:**
 
 Reaper Bot provides a library of built in functions that can be called to perform calculations or operations. Functions have the following basic syntax:
 
@@ -626,11 +1061,19 @@ A reference of all functions in these packages is below:
 
 * **max**
 
+```
+[max: val1, val2, ..., valN]
+```
+
 `[max: 4, 2, 5, 3, 1]` ⇨ `5`
 
 Returns the maximum value of its arguments.
 
 * **min**
+
+```
+[min: val1, val2, ..., valN]
+```
 
 `[min: 4, 2, 5, 3, 1]` ⇨ `1`
 
@@ -638,17 +1081,29 @@ Returns the minimum value of its arguments.
 
 * **text**
 
+```
+[text: val1, val2, ..., valN]
+```
+
 `[text: 'a=', 5, ' b=', 7]` ⇨ `'a=5 b=7'`
 
 Convert arguments to text and combine them into a single text string.
 
 * **format**
 
+```
+[format: format-string, val1, val2, ..., valN]
+```
+
 `[format: 'a=%d b=%d x=%s', 5, 7, 'ABC']` ⇨ `'a=5 b=7 x=ABC'`
 
 Create formatted text. The first argument is the *"format string"* that controls the format and the remaining are its arguments. [See list of formatting options](http://download.oracle.com/javase/1.5.0/docs/api/java/util/Formatter.html).
 
 * **value**
+
+```
+[value: val1, val2, ..., valN]
+```
 
 `[value: nil, nil, 5, nil]` ⇨ `5`
 
@@ -746,9 +1201,30 @@ Returns the first non-nil value from its arguments.
 ## **Trades**
 
 * **max-contracts**
+
+```
+[Trades.max-contracts: balance, price]
+```
+
+`[Trades.max-contracts: 1000, 10]` ⇨ `100`
+
+Calculate the maximum number of contracts that you can buy with the specified balance and price, taking fees into account.
+
 * **price-offset**
+
+```
+[Trades.price-offset: percent, price]
+```
+
+Calculate a new price offset from the specified price by percent.
+
 * **risk-based-contracts**
 
+```
+[Trades.risk-based-contracts: balance, price, stop-price, percentage-loss]
+```
+
+Calculate number of contracts for an entry that can be placed at *price*, using *balance*, with a stop loss placed at *stop-price* such that if the stop fills, exactly *percentage-loss*% of balance would be lost. Use this to calculate entry sizes for risk-based entries, allowing you to cap the potential per-trade losses to *percentage-loss*.
 
 # **Sample Strategies**
 
@@ -759,7 +1235,7 @@ The following strategy has two input signals, `enter-long` and `enter-short`. Th
 [[config]]
     name = "order-size"
     label = "Order Size"
-    type = "price"
+    type = "number"
 [[config]]
     name = "stop-distance"
     label = "Stop Distance"
