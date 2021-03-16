@@ -1,3 +1,23 @@
+* [Introduction](#Introduction)
+    * [Hierarchy of States](#hierarchy-of-states)
+    * [When will a Strategy Run](#when-will-a-strategy-run)
+* [TOML Format](#toml-format)
+* [Strategy User Guide](#strategy-user-manual)
+    * [inputs](#inputs-top-level-field)
+    * [config](#config-top-level-field)
+    * [data](#data-top-level-field)
+    * [states](#states-top-level-field)
+* [Strategy Tutorial](#strategy-tutorial)
+* [Scripting Reference](#scripting-reference)
+    * [core](#core) functions
+    * [math](#math) functions
+    * [text](#text) functions
+    * [list](#list) functions
+    * [set](#set) functions
+    * [type](#type) functions
+    * [time](#time) functions
+    * [trades](#trades) functions
+* [Sample Strategies](#sample-strategies)
 
 # **Introduction**
 
@@ -399,7 +419,7 @@ The `data` field allows data variables to be created or modified.
 
 ### **note**
 
-The `note` field allows notes to be added to the bot logs.
+The `note` field allows notes to be added to the bot logs. (`note = "abc"` and `note.text = "abc"` are equivalent)
 
 ```toml
 [states]
@@ -412,7 +432,7 @@ The `note` field allows notes to be added to the bot logs.
     [[states.state]]
         id = "another-state"
         data.foo = 10
-        note.text = "=> [text: 'In another-state, value of foo is:', #foo]"
+        note = "=> [text: 'In another-state, value of foo is:', #foo]"
 ```
 
 ### **trigger**
@@ -424,7 +444,7 @@ Each trigger is a table with the following fields:
  * `when` ─ the only mandatory field is the condition to evaluate. If this evaluates to `true` then the remainder of the trigger is executed, otherwise it is ignored.
  * `to-state` ─ optional field containing the name of a state to change to.
  * `data` ─ optional field containing a table of data variables to set.
- * `note.text` ─ optional field containing text to add to the logs.
+ * `note` ─ optional field containing text to add to the logs (`note = "abc"` and `note.text = "abc"` are equivalent).
 
 ```toml
 [states]
@@ -1112,31 +1132,167 @@ Returns the first non-nil value from its arguments.
 ## **Math**
 
 * **floor**
+```
+[Math.floor: value]
+```
+`[Math.floor: 1.3]` = `1`
+
+Round a float *down* to an integer (rounding towards negative infinity).
+
 * **ceil**
+```
+[Math.ceil: value]
+```
+`[Math.ceil: 1.3]` = `2`
+
+Round a float *up* to an integer (rounding towards positive infinity).
+
 * **round**
+```
+[Math.round: value]
+```
+`[Math.round: 1.3]` = `1`
+`[Math.round: 1.7]` = `2`
+`[Math.round: 1.5]` = `2`
+
+Round a float to the closest integer (ties are rounded *away* from zero).
+
 * **truncate**
+```
+[Math.truncate: value]
+```
+`[Math.truncate: 1.8]` = `1`
+
+Convert a float to an integer by discarding the decimal part and keeping only the whole number part without rounding.
+
 * **abs**
+```
+[Math.abs: value]
+```
+`[Math.abs: -12]` = `12`
+
+Returns the absolute value (positive) of the input value.
+
 * **sign**
+```
+[Math.sign: value]
+```
+`[Math.sign: -43]` = `-1`
+
+Returns `1` if the value is positive, `-1` if its negative or `0` if its `0`.
+
 * **is-positive**
+```
+[Math.is-positive: value]
+```
+`[Math.is-positive: 12]` = `true`
+
+Test if a value is positive.
+
 * **is-negative**
+```
+[Math.is-negative: value]
+```
+`[Math.is-negative: -12]` = `true`
+
+Test if a value is negative.
+
 * **is-zero**
+```
+[Math.is-zero: value]
+```
+`[Math.is-zero: 0]` = `true`
+
+Test if a value is zero.
+
 * **is-nonzero**
+```
+[Math.is-nonzero: value]
+```
+`[Math.is-nonzero: 12]` = `true`
+
+Test if a value is not zero.
+
 * **is-even**
+```
+[Math.is-even: value]
+```
+`[Math.is-even: 12]` = `true`
+
+Test if a value is even.
+
 * **is-odd**
+```
+[Math.is-odd: value]
+```
+`[Math.is-odd: 11]` = `true`
+
+Test if a value is odd.
 
 ## **Text**
 
 * **upper-case**
+```
+[Text.upper-case: text]
+```
+`[Text.upper-case: 'abc']` = `'ABC'`
+
+Conversts text to upper case.
+
 * **lower-case**
+```
+[Text.lower-case: text]
+```
+`[Text.lower-case: 'ABC']` = `'abc'`
+
+Conversts text to lower case.
+
 * **capitalize**
+```
+[Text.capitalize: text]
+```
+`[Text.capitalize: 'abc']` = `'Abc'`
+
+Conversts the first letter of text to upper case.
+
 * **join**
+```
+[Text.join: list, separator]
+```
+`[Text.join: [1, 2, 3], ':']` = `'1:2:3`
+
+Joins all items in a list, as text, placing `separator` between each item.
+
 * **slice**
+```
+[Text.slice: text, from, length]
+```
+`[Text.slice: 'abcdef', 2, 3]` = `'cde'`
+
+Return a section of `length` letters from the input text, starting at `from` (zero-indexed, ie the first letter is 0).
+
+If `length` is longer than the available letters, then the available letters are returned: `[Text.slice: 'abcdef', 2, 10]` = `'cdef'`
+
 * **split**
+```
+[Text.split: text, pattern]
+```
+`[Text.split: 'abc:def', ':']` = `['abc', 'def']`
+
+Split text into a list of sections.
+
 * **find**
+```
+[Text.find: text, pattern]
+```
+`[Text.find: 'abcdef', 'cd']` = `2`
+
+Return the (zero-indexed) position of `pattern` in `text`, or `-1` if it is not found.
 
 ## **List**
 
 * **new**
+* **from**
 * **find**
 * **filled**
 * **append**
@@ -1150,11 +1306,6 @@ Returns the first non-nil value from its arguments.
 * **sum**
 * **sort**
 * **reverse**
-* **set**
-* **set-in**
-* **transform**
-* **keep**
-* **remove**
 * **collect**
 * **avg**
 * **take-last**
@@ -1171,60 +1322,163 @@ Returns the first non-nil value from its arguments.
 ## **Set**
 
 * **new**
+```
+[Set.new: a, b, ...]
+```
+Create a new set of values.
+
+* **from**
+```
+[Set.from: collection]
+```
+Converts a collection (list, map or set) into a set. This will de-duplicate values in the collection!
+
 * **union**
+```
+[Set.union: a, b]
+```
+Returns a new set containing all values from both `a` and `b`, with duplicates removed.
+
 * **intersection**
+```
+[Set.intersection: a, b]
+```
+Returns a new set containing only values that are in both `a` and `b`.
+
 * **difference**
+```
+[Set.difference: a, b]
+```
+Returns a new set containing all values from `a` that are also in `b`.
 
 ## **Type**
 
 * **is-integer**
+```
+[Type.is-integer: value]
+```
+
+`[Type.is-integer: 10]` = `true`
+`[Type.is-integer: 1.2]` = `false`
+
 * **is-float**
+```
+[Type.is-float: value]
+```
+
+`[Type.is-float: 1.2]` = `true`
+`[Type.is-float: 10]` = `false`
+
 * **is-number**
+```
+[Type.is-number: value]
+```
+
+`[Type.is-number: 1.2]` = `true`
+`[Type.is-number: 10]` = `true`
+
 * **is-boolean**
+```
+[Type.is-boolean: value]
+```
+`[Type.is-boolean: false]` = `true`
+
 * **is-text**
+```
+[Type.is-text: value]
+```
+`[Type.is-text: 'hello']` = `true`
+
 * **is-list**
+```
+[Type.is-list: value]
+```
+`[Type.is-list: [1, 2, 3]]` = `true`
+
 * **is-table**
+```
+[Type.is-table: value]
+```
+`[Type.is-table: {key: 12}]` = `true`
+
 * **is-nil**
+```
+[Type.is-nil: value]
+```
+`[Type.is-nil: nil` = `true`
 
 ## **Time**
 
-* **now**
+**NOTE: All times are in UTC!**
+
 * **since**
-* **days**
-* **hours**
-* **minutes**
+```
+[Time.since: time]
+```
+`[Time.since: time-2h-17m-5s-ago]` => `{days: 0, hours: 2, minutes: 137, seconds: 8225}`
+
+Gives the duration from a specified time (as a seconds timestamp -- the `time` variable gives you the current time in this format).
+You can access the duration as number of days (`[Time.since: ...].days`), number of hours (`[Time.since: ...].hours`), number of minutes (`[Time.since: ...].minutes`) or number of seconds (`[Time.since: ...].seconds`).
+
+Note that `[Time.since: time].seconds` = `0` (zero seconds have passed since "now").
+
+* **day-of-month**
+```
+[Time.day-of-month: time]
+```
+Converts a time (as a "seconds" timestamp -- the `time` variable gives the current time in this format) to the day of the month.
+
 * **day-of-week**
+```
+[Time.day-of-week: time]
+```
+Converts a time (as a "seconds" timestamp -- the `time` variable gives the current time in this format) to the day of the week, as upper case text (eg `'TUESDAY'`).
+
 * **hour-of-day**
-* **minute-of-day**
-* **second-of-day**
+```
+[Time.hour-of-day: time]
+```
+Converts a time (as a "seconds" timestamp -- the `time` variable gives the current time in this format) to the hour of the day it falls on.
+
+* **minute-of-hour**
+```
+[Time.minute-of-hour: time]
+```
+Converts a time (as a "seconds" timestamp -- the `time` variable gives the current time in this format) to the minute of the hour of the day it falls on.
+
+* **second-of-minute**
+```
+[Time.second-of-minute: time]
+```
+Converts a time (as a "seconds" timestamp -- the `time` variable gives the current time in this format) to the second of the minute of the hour of the day it falls on.
 
 ## **Trades**
 
 * **max-contracts**
-
 ```
 [Trades.max-contracts: balance, price]
 ```
-
 `[Trades.max-contracts: 1000, 10]` ⇨ `100`
 
 Calculate the maximum number of contracts that you can buy with the specified balance and price, taking fees into account.
 
 * **price-offset**
-
 ```
 [Trades.price-offset: percent, price]
 ```
-
 Calculate a new price offset from the specified price by percent.
 
 * **risk-based-contracts**
-
 ```
 [Trades.risk-based-contracts: balance, price, stop-price, percentage-loss]
 ```
-
 Calculate number of contracts for an entry that can be placed at *price*, using *balance*, with a stop loss placed at *stop-price* such that if the stop fills, exactly *percentage-loss*% of balance would be lost. Use this to calculate entry sizes for risk-based entries, allowing you to cap the potential per-trade losses to *percentage-loss*.
+
+* **position-side**
+```
+[Trades.position-side: value]
+```
+Returns `value` as a positive number if current position is long, a negative number if current position is short or 0 if not in a position.
 
 # **Sample Strategies**
 

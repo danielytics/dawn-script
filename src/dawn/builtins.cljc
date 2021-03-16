@@ -5,7 +5,8 @@
             [dawn.libs.core :as core-lib]
             [dawn.libs.math :as math-lib]
             [dawn.libs.list :as list-lib]
-            [dawn.libs.trades :as trades-lib]))
+            [dawn.libs.trades :as trades-lib]
+            [dawn.libs.time :as time-lib]))
 
 ; Data types for parameters:
 ; context -- only one parameter may be of type context and if present, must be first argument
@@ -16,10 +17,6 @@
 ; map -- values can be anything
 ; map/integer, map/float, map/number, map/boolean, map/text -- map with specific value types
 ; any -- parameter can be anything
-
-(comment
-  #?(:clj nil
-     :cljs nil))
 
 (def libraries
   ; Core is always merged into context and always un-namespaced. Other libraries are merged in on demand and are namespaced.
@@ -142,7 +139,11 @@
                                    :params ["text" "first" "length"]}
                           :params [:text :integer :integer]
                           :return :text
-                          :fn     #(subs %1 %2 (+ %2 %3))}
+                          :fn     (fn [text first length]
+                                    (let [end (+ first length)]
+                                      (if (> end (count text))
+                                        (subs text first)
+                                        (subs text first end))))}
           :split         {:doc    {:text   "Split text into a list of text, anywhere pattern is found"
                                    :params ["text" "pattern"]}
                           :params [:text :text]
@@ -158,6 +159,11 @@
                       :params [:varargs]
                       :return :list
                       :fn     #(into [] %)}
+          :from      {:doc    {:text "Converts an input collection (list, set or table) into a list"
+                               :params ["a"]}
+                      :params [:any]
+                      :return :list
+                      :fn     vec}
           :find      {:doc    {:text   "Return the index of value in the list, or -1 if not found"
                                :params ["list" "value"]}
                       :params [:list :any]
@@ -313,6 +319,11 @@
                          :params [:varargs]
                          :return :list
                          :fn     #(into #{} %)}
+          :from      {:doc    {:text "Converts an input collection (list, set or table) into a set"
+                               :params ["a"]}
+                      :params [:any]
+                      :return :list
+                      :fn     set}
           :union        {:doc    {:text   "Return the set union of two input lists (elements from both 'a' and 'b' without duplicates)"
                                   :params ["a" "b"]}
                          :params [:list :list]
@@ -368,63 +379,53 @@
                        :params [:any]
                        :return :boolean
                        :fn     nil?}}
-   :Time   {:now           {:doc    {:text "Returns the current time, in seconds since the epoch"
-                                     :params []}
-                            :params [:context]
-                            :return :integer
-                            :fn  #(get-in % [:static :time])}
-            :since         {:doc {:text "Returns the number of seconds since a time"
+   :Time   {:since         {:doc {:text "Returns the number of seconds since a time"
                                   :params ["time"]}
                             :params [:context :integer]
                             :return :integer
-                            :fn  #(- %2 (get-in %1 [:static :time]))}
-            :days          {:doc {:text "Returns the number of days in a time"
+                            :fn  time-lib/since}
+            :day-of-month  {:doc {:text "Returns the hour of the day represented by a time"
                                   :params ["time"]}
                             :params [:integer]
                             :return :integer
-                            :fn  #(int (/ %  86400))} ; (* 60 60 24) = 86400
-            :hours         {:doc {:text "Returns the number of hours a time"
+                            :fn  time-lib/day-of-month}
+            :day-of-week   {:doc {:text "Returns the day of the week represented by a time, as uppercase text (eg: 'TUESDAY')"
                                   :params ["time"]}
                             :params [:integer]
                             :return :integer
-                            :fn  #(int (/ % 3600))} ; (* 60 60) = 600
-            :minutes       {:doc {:text "Returns the number of minutes a time"
-                                  :params ["time"]}
-                            :params [:integer]
-                            :return :integer
-                            :fn  #(int (/ % 60))}
-            :split         {:doc {:text "Split a time into [days, hours, minutes, seconds]"
-                                  :params ["time"]}
-                            :params [:integer]
-                            :return :integer
-                            :fn  #(constantly 0)}
-            :day-of-week   {:doc {:text "Returns the day of the week represented by a time (0 = monday, 6 = sunday)"
-                                  :params ["time"]}
-                            :params [:integer]
-                            :return :integer
-                            :fn  #(constantly 0)}
+                            :fn  time-lib/day-of-week}
             :hour-of-day   {:doc {:text "Returns the hour of the day represented by a time"
                                   :params ["time"]}
                             :params [:integer]
                             :return :integer
-                            :fn  #(constantly 0)}
-            :minute-of-day {:doc {:text "Returns the minute of the day represented by a time"
+                            :fn  time-lib/hour-of-day}
+            :minute-of-hour {:doc {:text "Returns the minute of the hour of the day represented by a time"
+                                   :params ["time"]}
+                             :params [:integer]
+                             :return :integer
+                             :fn  time-lib/minute-of-hour}
+            :second-of-minute {:doc {:text "Returns the second of the minute of the hour of the day represented by a time"
                                   :params ["time"]}
                             :params [:integer]
                             :return :integer
-                            :fn  #(constantly 0)}
-            :second-of-day {:doc {:text "Returns the second of the day represented by a time"
-                                  :params ["time"]}
-                            :params [:integer]
-                            :return :integer
-                            :fn  #(constantly 0)}}
-   :Trades {:max-contracts {:doc    {:text   "Calculate maximum contracts possible with given balance at given price"
-                                     :params ["balance" "price"]}
-                            :params [:context :float :float]
-                            :return :integer
-                            :fn     trades-lib/max-contracts}
-            :price-offset  {:doc    {:text   "Calculate price at a percentage offset from price"
-                                     :params ["percent" "price"]}
-                            :params [:float :float]
-                            :return :float
-                            :fn     trades-lib/price-offset}}})
+                            :fn  time-lib/second-of-minute}}
+   :Trades {:max-contracts         {:doc    {:text   "Calculate maximum contracts possible with given balance at given price"
+                                             :params ["balance" "price"]}
+                                    :params [:context :float :float]
+                                    :return :integer
+                                    :fn     trades-lib/max-contracts}
+            :price-offset          {:doc    {:text   "Calculate price at a percentage offset from price"
+                                             :params ["percent" "price"]}
+                                    :params [:float :float]
+                                    :return :float
+                                    :fn     trades-lib/price-offset}
+            :risk-based-contracts  {:doc    {:text   "Calculate entry size based on stop price, balance, price and risk tolerance"
+                                             :params ["balance" "price" "stop-price" "percentage-loss"]}
+                                    :params [:float :float :float :float]
+                                    :return :integer
+                                    :fn     trades-lib/risk-based-contracts}
+            :position-side         {:doc    {:text   "Returns the input value as a positive value if position side is long or negative if short"
+                                             :params ["value"]}
+                                    :params [:context :integer]
+                                    :return :integer
+                                    :fn     trades-lib/position-side}}})

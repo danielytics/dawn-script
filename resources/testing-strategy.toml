@@ -1,11 +1,14 @@
 [data]
     a = 0
+    b = "hi"
 
 [states]
     initial = "start"
 
     [[states.state]]
         id = "start"
+
+        data.b = "=> nil"
 
         [[states.state.trigger]]
             when = true

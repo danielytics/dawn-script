@@ -77,9 +77,13 @@
   "Add note to messaegs, if required"
   [context note]
   (if (seq note)
-    (util/add-message context
-                  (get note :category :note)
-                  (-eval context (get note :text "")))
+    (if (string? note)
+      ; note = "..." (shorthand version)
+      (util/add-message context :note (-eval context note))
+      ; note.text = "..."
+      (util/add-message context
+                        (get note :category :note)
+                        (-eval context (get note :text ""))))
     context))
 
 (defn -process-trigger-action

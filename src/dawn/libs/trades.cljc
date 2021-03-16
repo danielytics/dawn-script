@@ -17,6 +17,14 @@
   (+ price (* (/ percent 100.0) price)))
 
 (defn risk-based-contracts
-  [context balance price stop-price percentage-loss]
+  [balance price stop-price percentage-loss]
   (/  (* balance price percentage-loss)
       (/ stop-price price)))
+
+(defn position-side
+  [context value]
+  (let [position (get-in context [:static :account :position])]
+    (cond
+      (pos? position) value
+      (neg? position) (- value)
+      :else 0)))
