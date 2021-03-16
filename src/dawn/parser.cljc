@@ -3,6 +3,7 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.set :as set]
+            [clojure.string :as string]
             [slingshot.slingshot :refer [throw+ try+]]
             [dawn.types :as types])
   (:import [org.tomlj Toml]))
@@ -169,7 +170,7 @@
 (defn -transform-slashbang
   "Transform \".../#...\" into \"=> '.../' ++ #...]\""
   [text]
-  (if-let [match (re-matches #"^(.*\/)(\#.*)$" text)]
+  (if-let [match (re-matches #"^(.*\/)(\#.*)$" (clojure.string/trim text))]
     (apply format "=> '%s' ++ %s" (next match))
     text))
 
