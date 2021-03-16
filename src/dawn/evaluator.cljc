@@ -50,14 +50,31 @@
       (some #(= elem %) coll))))
 
 (defn concatenate
-  "Concatenate two values. Works for strings, vectors and maps"
+  "Concatenate two values. Works for strings, vectors, sets and maps. Additionally strings can also append numbers and keywords, while both vectors and sets can append anything"
   [a b]
-  (when (= (type a)
-           (type b))
-    (cond
-      (string? a) (str a b)
-      (vector? a) (into a b)
-      (map? a) (merge a b))))
+  (cond
+    ; string ++ string|number
+    (and (string? a)
+         (or (string? b)
+             (number? b))) (str a b)
+    ; string ++ keyword
+    (and (string? a)
+         (keyword? b)) (str a (name b))
+    ; vector ++ vector
+    (and (vector? a)
+         (vector? b)) (into a b)
+    ; vector ++ anything
+    (vector? a) (conj a b)
+    ; set ++ set
+    (and (set? a)
+         (set? b)) (into a b)
+    ; set ++ anything
+    (set? a) (conj a b)
+    ; map ++ map
+    (and (map? a)
+         (map? b)) (merge a b)
+    ; Otherwise, unsupported pairs of types
+    :else ::unsupported))
 
 (def binary-operators
   {; Arithmetic
@@ -107,6 +124,17 @@
                :variables (-vars context)
                :message (str "Could not read undefined variable '" (when (= var-type :dynamic) "#") (name var-name) "'")}))))
 
+(defn -type-of
+  [value]
+  (cond
+    (number? value) "number"
+    (boolean? value) "boolean"
+    (string? value) "text"
+    (vector? value) "list"
+    (map? value) "table"
+    (nil? value) "nil"
+    (set? value) "set"))
+
 (defn evaluate
   "Evaluate an AST node within a context"
   [context [node-type & [value :as args] :as node]]
@@ -146,7 +174,7 @@
                               :operation [lhs (symbol value) rhs]
                               :metadata (meta node)
                               :variables (-vars context)
-                              :message "Attempt to divide by zero"})):vars (-vars context)
+                              :message "Attempt to divide by zero"}))
                    (when (or (and (or (nil? lhs) (nil? rhs))
                                   (contains? non-nill-operators value))
                              (and (= value :in) (nil? rhs)))
@@ -156,7 +184,15 @@
                               :metadata (meta (if (nil? lhs) left right))
                               :variables (-vars context)
                               :message (str "'" ((xf/when keyword? name) value) "' could not be applied to nil")}))
-                   ((get binary-operators value) lhs rhs))
+                   (let [result ((get binary-operators value) lhs rhs)]
+                     (if (= result ::unsupported)
+                       (throw+ {:error ::arithmetic
+                                :type :unsupported-types
+                                :operation [lhs (symbol value) rhs]
+                                :metadata (meta (if (nil? lhs) left right))
+                                :variables (-vars context)
+                                :message (str "Operation '" ((xf/when keyword? name) value) "' not supported for types '" (-type-of lhs) "' and '" (-type-of rhs) "'")})
+                       result)))
       ; Ternary
       :ternary-expression (evaluate context (if (evaluate context value)
                                               (second args)

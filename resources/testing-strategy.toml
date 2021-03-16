@@ -1,19 +1,130 @@
-[data]
-    a = 0
-    b = "hi"
+# Configurable settings
+[[config]]
+    name = "order-size"
+    label = "Order Size"
+    type = "price"
+[[config]]
+    name = "stop-distance"
+    label = "Stop Distance"
+    type = "price"
+[[config]]
+    name = "number-of-tp-orders"
+    label = "Number of TP Orders"
+    type = "number"
+[[config]]
+    name = "tp-distances"
+    label = "Take Profit Distances"
+    type = "list"
+    [[config.list-value]]
+        label = "First TP"
+        type = "price"
+        default = 100
+    [[config.list-value]]
+        label = "Last TP"
+        type = "price"
+        default = 200
 
+# Input signals
+[inputs]
+    enter-long = {type = "event"}
+    enter-short = {type = "event"}
+    market-close = {type = "event"}
+
+# Strategy logic
 [states]
-    initial = "start"
+    initial = "not-in-position"
 
+    # When not in a position:
     [[states.state]]
-        id = "start"
+        id = "not-in-position"
 
-        data.b = "=> nil"
+        [[states.state.orders]]
+            # Only place this order when entering long
+            when = "=> inputs.enter-long and account.position < 0"
+            # Every order needs a unique tag
+            tag = "close short"
+            # Order properties
+            type = "market"
+            side = "buy"
+            contracts = "=> [Math.abs: account.position]"
 
-        [[states.state.trigger]]
-            when = true
-            note.text = "=> [List.remove: [1, 2, 3], x -> [Math.is-even: x]]"
-            to-state = "end"
+        [[states.state.orders]]
+            # Only place this order when entering long
+            when = "=> inputs.enter-long"
+            # Every order needs a unique tag
+            tag = "long"
+            # Order properties
+            type = "market"
+            side = "buy"
+            contracts = "=> config.order-size"
+            # When this order has filled, switch to the "in-position" state
+            on.fill.to-state = "in-position"
+        
+        [[states.state.orders]]
+            # Only place this order when entering short
+            when = "=> inputs.enter-short and account.position > 0"
+            # Every order needs a unique tag
+            tag = "close long"
+            # Order properties
+            type = "market"
+            side = "sell"
+            contracts = "=> [Math.abs: account.position]"
+
+        [[states.state.orders]]
+            # Only place this order when entering short
+            when = "=> inputs.enter-short"
+            # Every order needs a unique tag
+            tag = "short"
+            # Order properties
+            type = "market"
+            side = "sell"
+            contracts = "=> config.order-size"
+            # When this order has filled, switch to the "in-position" state
+            on.fill.to-state = "in-position"
     
+    # When in a position:
     [[states.state]]
-        id = "end"
+        id = "in-position"
+
+        data.exit-direction = "=> account.position > 0 ? 'sell' : 'buy'"
+        data.distance-between-tps = "=> [Math.abs: config.tp-distances.1 - config.tp-distances.0] / config.number-of-tp-orders"
+
+        # Set state back to "not-in-position" when position is closed
+        # Note that TP orders have an 'on.fill' trigger that only adds a note, this will cause this trigger to be checked when a TP fills
+        [[states.state.trigger]]
+            when = "=> account.position == 0"
+            to-state = "not-in-position"
+
+        # Place stop loss
+        [[states.state.orders]]
+            tag = "stop-loss"
+            type = "stop-market"
+            side = "=> #exit-direction"
+            contracts = "=> [Math.abs: account.position]"
+            trigger-price = "=> account.avg-price - [Trades.position-side: config.stop-distance]"
+            instructions = ['close']
+            on.trigger.note = "Stop Triggered"
+            on.trigger.to-state = "not-in-position"
+        
+        # Place take profit limit orders, each for half of the position
+        [[states.state.orders]]
+            # Duplicate this order number-of-tp-orders times. Range = 0,1,...(number-of-tp-orders - 1)
+            foreach.tp = "=> [List.range: 0, config.number-of-tp-orders]"
+            tag = "tp/#tp"
+            type = "limit"
+            side = "=> #exit-direction"
+            contracts = "=> config.order-size / 2"
+            price = "=> account.avg-price + [Trades.position-side: config.tp-distances.0 + (#distance-between-tps * #tp)]"
+            instructions = ['reduce-only', 'post-only']
+            # By subscribing to the fill event, we make sure that the above trigger will get run when a TP fills (order of execution: event -> data -> triggers -> orders)
+            on.fill.note = "=> [text: 'tp/', #tp, ' Filled']"
+
+        # Close position on exit signal
+        [[states.state.orders]]
+            when = "=> inputs.market-close"
+            tag = "exit"
+            type = "market"
+            side = "=> #exit-direction"
+            contracts = "=> account.position"
+            instructions = ['close']
+            on.fill.to-state = "not-in-position"

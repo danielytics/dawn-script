@@ -41,7 +41,7 @@
 
 #_
 (clojure.pprint/pprint
- (load-file "resources/strategy.toml"))
+ (load-file "resources/testing-strategy.toml"))
 
 (defn -set-event
   "Mutates the event object to include its trigger logic, if there is any"
@@ -129,12 +129,12 @@
 (clojure.pprint/pprint
  (load-file "resources/testing-strategy.toml"))
 
-
 #_
 (-> {:strategy (load-file "resources/testing-strategy.toml")
      :continue? true
      :instance {:config {:order-size 100
                          :stop-distance 150
+                         :number-of-tp-orders 5
                          :tp-distances [100 200]}}
      :input-data {:inputs {:enter-long false}
                   :account {:balance  1000
@@ -143,7 +143,7 @@
                             :leverage 1}}}
     (run-once)
     (run-once {:input-data {:inputs {:enter-long true}}})
-    (run-once {:event {:id :0.0/fill
+    (run-once {:event {:id :0.1/fill
                        :status :filled
                        :order {:tag "long"}}})
 

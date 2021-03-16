@@ -560,6 +560,14 @@ order/2   market   20
 order/4   market   40
 ```
 
+In the above example, `tag` is set to `"=> [text: 'order/', #x]"`, which will generate tags like `order/2`. This could equally have been written as `"=> 'order/' ++ #tp"` (`++` means *concatenate*). However, there is a shortcut feature designed for use with `foreach` and `tag`:
+
+```
+tag = "order/#tp"
+```
+
+This results in the exact same tags as above. The pattern is `"A/#B"` (where `A` and `B` can be any length of text) and this is transformed into `"=> 'A' ++ #B"` behind the scenes.
+
 # **Strategy Tutorial**
 
 Lets build a strategy with the following signals:
