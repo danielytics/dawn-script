@@ -487,7 +487,7 @@ Orders have many fields:
 * `trail-offset` ─ For trailing stop orders, the amount to trail behind the price by
 * `instructions` ─ A list of execution instructions, such as `"close"`, `"reduce-only"`, `"post-only"`.
 * `auto-replace` ─ Set to `true` for this order to get automatically replaced if it is no longer open (eg because it got filled or cancelled). By default, this value is assumed to be `false`.
-* `on` ─ A table where each field represents a status change trigger, executed when this order changes status. Available statuses are `on.fill`, `on.cancel` and `on.trigger`. The body of each of these is a table with the same structure as a normal trigger, but without the `when` condition.
+* `on` ─ A table where each field represents a status change trigger, executed when this order changes status. Available statuses are `on.open`, `on.fill`, `on.cancel`, `on.trigger` and `on.close`. The body of each of these is a table with the same structure as a normal trigger, but without the `when` condition. `on.close` is triggered when any of `on.fill`, `on.cancel` or `on.trigger` are triggered, after they are triggered.
 * `foreach` ─ A special field used to generate multiple orders from a single *template* order. Explained in detail below.
 
 Some examples of orders:
@@ -1038,7 +1038,7 @@ That means that if a condition (eg the `when` field of an order) evaluates to ei
 * **`<`** ─ Test if one item is less than another: `2 < 3` ⇨ `true`
 * **`<=`** ─ Test if one value is less than or equal to another: `2 <= 1` ⇨ `false`
 * **`in`** ─ Test if an item is contained in a list: `3 in [1, 2, 3, 4]` ⇨ `true`
-* **`++`** ─ Concatenate two lists: `[1, 2] ++ [3, 4]` ⇨ `[1, 2, 3, 4]`
+* **`++`** ─ Concatenate two lists: `[1, 2] ++ [3, 4]` ⇨ `[1, 2, 3, 4]`. Can also be used with text (`'abc' ++ 'def'` ⇨ `'abcdef'`) or to append (`[1, 2] ++ 3` ⇨ `[1, 2, 3]`).
 * **`% of`** ─ Percentage: `25% of 200` ⇨ `50`, `(10 + 5)% of (50 * 8)` ⇨ `60`
 
 **Ternary Operator:**

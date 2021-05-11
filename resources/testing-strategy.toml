@@ -4,25 +4,26 @@
     label = "Order Size"
     type = "price"
 [[config]]
-    name = "stop-distance"
+    name = "stop-offset"
     label = "Stop Distance"
-    type = "price"
-[[config]]
-    name = "number-of-tp-orders"
-    label = "Number of TP Orders"
-    type = "number"
+    type = "percent"
+    default = 5
 [[config]]
     name = "tp-distances"
     label = "Take Profit Distances"
     type = "list"
     [[config.list-value]]
-        label = "First TP"
-        type = "price"
-        default = 100
+        label = "TP 1"
+        type = "percent"
+        default = 1
     [[config.list-value]]
-        label = "Last TP"
-        type = "price"
-        default = 200
+        label = "TP 2"
+        type = "percent"
+        default = 5
+    [[config.list-value]]
+        label = "TP 3"
+        type = "percent"
+        default = 10
 
 # Input signals
 [inputs]
@@ -58,6 +59,7 @@
             side = "buy"
             contracts = "=> config.order-size"
             # When this order has filled, switch to the "in-position" state
+            on.fill.data.stop-base-price = "=> event.order.fill-price"
             on.fill.to-state = "in-position"
         
         [[states.state.orders]]
@@ -80,6 +82,7 @@
             side = "sell"
             contracts = "=> config.order-size"
             # When this order has filled, switch to the "in-position" state
+            on.fill.data.stop-base-price = "=> event.order.fill-price"
             on.fill.to-state = "in-position"
     
     # When in a position:
@@ -87,7 +90,6 @@
         id = "in-position"
 
         data.exit-direction = "=> account.position > 0 ? 'sell' : 'buy'"
-        data.distance-between-tps = "=> [Math.abs: config.tp-distances.1 - config.tp-distances.0] / config.number-of-tp-orders"
 
         # Set state back to "not-in-position" when position is closed
         # Note that TP orders have an 'on.fill' trigger that only adds a note, this will cause this trigger to be checked when a TP fills
@@ -101,23 +103,22 @@
             type = "stop-market"
             side = "=> #exit-direction"
             contracts = "=> [Math.abs: account.position]"
-            trigger-price = "=> account.avg-price - [Trades.position-side: config.stop-distance]"
+            trigger-price = "=> #stop-base-price - [Trades.position-side: config.stop-offset]"
             instructions = ['close']
             on.trigger.note = "Stop Triggered"
             on.trigger.to-state = "not-in-position"
         
         # Place take profit limit orders, each for half of the position
         [[states.state.orders]]
-            # Duplicate this order number-of-tp-orders times. Range = 0,1,...(number-of-tp-orders - 1)
-            foreach.tp = "=> [List.range: 0, config.number-of-tp-orders]"
+            # Use the first number-of-tp-orders values from the list of tp-distances
+            foreach.tp = "=> config.tp-distances"
             tag = "tp/#tp"
             type = "limit"
             side = "=> #exit-direction"
-            contracts = "=> config.order-size / 2"
-            price = "=> account.avg-price + [Trades.position-side: config.tp-distances.0 + (#distance-between-tps * #tp)]"
+            contracts = "=> [Math.truncate: config.order-size / 3]"
+            price = "=> [Trades.price-offset: #tp, account.avg-price]"
             instructions = ['reduce-only', 'post-only']
-            # By subscribing to the fill event, we make sure that the above trigger will get run when a TP fills (order of execution: event -> data -> triggers -> orders)
-            on.fill.note = "=> [text: 'tp/', #tp, ' Filled']"
+            on.fill.data.stop-base-price = "=> event.order.fill-price"
 
         # Close position on exit signal
         [[states.state.orders]]

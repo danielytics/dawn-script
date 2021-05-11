@@ -413,7 +413,7 @@
                                              :params ["balance" "price"]}
                                     :params [:context :float :float]
                                     :return :integer
-                                    :fn     trades-lib/max-contracts}
+                                    :fn     trades-lib/max-contracts-NEXTGEN}
             :price-offset          {:doc    {:text   "Calculate price at a percentage offset from price"
                                              :params ["percent" "price"]}
                                     :params [:float :float]

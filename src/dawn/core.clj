@@ -133,9 +133,9 @@
 (-> {:strategy (load-file "resources/testing-strategy.toml")
      :continue? true
      :instance {:config {:order-size 100
-                         :stop-distance 150
+                         :stop-offset 150
                          :number-of-tp-orders 5
-                         :tp-distances [100 200]}}
+                         :tp-distances [3 6 9]}}
      :input-data {:inputs {:enter-long false}
                   :account {:balance  1000
                             :position 10
@@ -145,7 +145,8 @@
     (run-once {:input-data {:inputs {:enter-long true}}})
     (run-once {:event {:id :0.1/fill
                        :status :filled
-                       :order {:tag "long"}}})
+                       :order {:tag "long"
+                               :fill-price 1000}}})
 
     (-show-summary))
 

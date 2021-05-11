@@ -110,11 +110,6 @@
   (when (-eval context condition)
     (dissoc trigger :condition)))
 
-(defn -check-trigger-fn
-  "Return a function which checks if the 'when' parameter of a trigger evaluates to true"
-  [context]
-  (partial -check-trigger context))
-
 (defn -apply-triggers
   "Test if a trigger is valid and if so, apply to context and mark as dirty, otherwise add to list of available triggers"
   [{:keys [context remaining-triggers dirty?]} trigger]

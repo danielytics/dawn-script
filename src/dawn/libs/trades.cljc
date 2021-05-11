@@ -12,6 +12,21 @@
         max-contracts       (int (/ balance cost-per-contract))]
     max-contracts))
 
+
+(defn max-contracts-NEXTGEN
+  [context balance price]
+  (let [leverage                    (get-in context [:static :account :leverage])
+        fee-rate                    (get-in context [:static :market :fees :taker])
+        initial-margin-rate         (get-in context [:static :market :fees :initial-margin])
+        fee-rate-per-contract       (+ fee-rate fee-rate initial-margin-rate) ; fee-rate for entry and again for exit
+        price-per-contract          (/ 1.0 price)
+        max-without-fees            (int (/ (* balance leverage) price-per-contract))
+        fees-for-max                (* max-without-fees * fee-rate-per-contract)
+        leveraged-balacne-less-fees (* (- balance fees-for-max) * leverage)
+        max-after-fees              (int (/ leveraged-balacne-less-fees price-per-contract))]
+    max-after-fees))
+
+
 (defn price-offset
   [percent price]
   (+ price (* (/ percent 100.0) price)))
