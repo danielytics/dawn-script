@@ -84,7 +84,7 @@
            path    (get-in error [:human :path])]
        {:type :error
         :error error
-        :result {:messages [(util/make-message :error (str message " in " path))]}}))))
+        :result {:messages [(util/make-message :error (str message " in " path) error)]}}))))
 
 
 (defn run-once
