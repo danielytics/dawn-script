@@ -71,6 +71,21 @@
              :highlight (str (string/join "" (repeat start-index " "))
                              (string/join "" (repeat (- end-index start-index) "^")))}}))
 
+(defn -generate-error-log
+  [error]
+  (let [message (get-in error [:human :message])
+        path    (get-in error [:human :path])
+        details {:error-type "script"
+                 :source (get-in error [:human :source])
+                 :index (get-in error [:human :index])
+                 :highlight (get-in error [:human :highlight])
+                 :state (get-in error [:machine :path 1])
+                 :item-index (get-in error [:machine :path 3])
+                 :item-type (get-in error [:machine :path 2])
+                 :attribute (get-in error [:machine :path 4])
+                 :message message}]
+    (util/make-message :error (str message " in " path) details)))
+
 (defn execute
   "Execute an instance of a strategy. If (:data instance) is {}, a new instance is generated."
   [strategy instance input-data]
@@ -79,12 +94,10 @@
      {:type :result
       :result (runtime/execute strategy instance input-data)})
    (catch Object e
-     (let [error   (-generate-error-data e)
-           message (get-in error [:human :message])
-           path    (get-in error [:human :path])]
+     (let [error   (-generate-error-data e)]
        {:type :error
         :error error
-        :result {:messages [(util/make-message :error (str message " in " path) error)]}}))))
+        :result {:messages [(-generate-error-log error)]}}))))
 
 
 (defn run-once
