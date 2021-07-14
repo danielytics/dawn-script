@@ -2,9 +2,7 @@
 
 (defn abs
   [x]
-  (let [result (Math/abs x)]
-    (println (str "Math.abs(" x ") => " result))
-    result))
+  (Math/abs x))
 
 (defn floor
   [x]

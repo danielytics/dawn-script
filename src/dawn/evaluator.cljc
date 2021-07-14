@@ -30,7 +30,15 @@
                expected-count)
           (if with-context?
             (apply (:fn func) context params)
-            (apply (:fn func) params))
+            (do
+              (println)
+              (println "Parameters:" (count parameters) (count params))
+              (println parameters params)
+              (println "Expected:" (count expected-params) "|" expected-params)
+              (println "Fn:" (:fn func))
+              (println "Param types:" (mapv #(type %) params))
+              (println)
+              (apply (:fn func) params)))
           (throw+ {:error ::call
                    :type :bad-arguments
                    :function (dissoc func :fn)
@@ -200,6 +208,7 @@
       ; Function calls
       :call (let [func-obj   (evaluate context value)
                   parameters (map #(evaluate context %) (second args))]
+              (println "CALL" func-obj parameters)
               (-call-function context node func-obj parameters)))
 (catch Exception e
   ; TODO: Send to datadog
