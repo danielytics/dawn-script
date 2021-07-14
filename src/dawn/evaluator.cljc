@@ -30,15 +30,7 @@
                expected-count)
           (if with-context?
             (apply (:fn func) context params)
-            (do
-              (println)
-              (println "Parameters:" (count parameters) (count params))
-              (println parameters params)
-              (println "Expected:" (count expected-params) "|" expected-params)
-              (println "Fn:" (:fn func))
-              (println "Param types:" (mapv #(type %) params))
-              (println)
-              (apply (:fn func) params)))
+            (apply (:fn func) params))
           (throw+ {:error ::call
                    :type :bad-arguments
                    :function (dissoc func :fn)
@@ -123,7 +115,7 @@
         value (get vars var-name ::not-found)]
     (if-not (and (keyword? value)
                  (= value ::not-found))
-      value
+      (if (decimal? value) (double value) value)
       (throw+ {:error ::var
                :type :undefined
                :variable (name var-name)
@@ -139,6 +131,7 @@
     (boolean? value) "boolean"
     (string? value) "text"
     (vector? value) "list"
+    (decimal? value) "big-decimal"
     (map? value) "table"
     (nil? value) "nil"
     (set? value) "set"))
@@ -208,7 +201,6 @@
       ; Function calls
       :call (let [func-obj   (evaluate context value)
                   parameters (map #(evaluate context %) (second args))]
-              (println "CALL" func-obj parameters)
               (-call-function context node func-obj parameters)))
 (catch Exception e
   ; TODO: Send to datadog
