@@ -428,4 +428,9 @@
                                              :params ["value"]}
                                     :params [:context :integer]
                                     :return :integer
-                                    :fn     trades-lib/position-side}}})
+                                    :fn     trades-lib/position-side}
+            :distribute            {:doc    {:text   "Distribute 'total' contracts between 'number' orders"
+                                             :params ["total" "number"]}
+                                    :params [:float :integer]
+                                    :return :integer
+                                    :fn     trades-lib/distribute}}})

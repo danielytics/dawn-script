@@ -11,7 +11,7 @@
                 (dissoc (:static context))
                 (map (juxt first (comp set keys second)))
                 (into {}))
-   :dynamic (set (keys (:data context)))})
+   :dynamic (dissoc (:data context) :dawn/orders)})
 
 (defn rearange-vararg-params [params expected-count]  
   (conj (vec (take (dec expected-count) params)) (subvec params (dec expected-count))))

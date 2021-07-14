@@ -43,3 +43,11 @@
       (pos? position) value
       (neg? position) (- value)
       :else 0)))
+
+(defn distribute
+  [total number]
+  (let [split (int (/ total number))
+        distribution (vec (repeat number split))]
+    (if (not= (* split number) total)
+      (update distribution 0 #(+ % (- total (* split number))))
+      distribution)))
