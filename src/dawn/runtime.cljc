@@ -17,6 +17,7 @@
       (catch Object error
        (throw+ (assoc error
                       :object-path (types/keys value)
+                      :ast (types/ast value)
                       :source (types/source value)))))
     value))
 

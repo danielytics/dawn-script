@@ -53,6 +53,7 @@
 (defn -generate-error-data
   "Generate detailed error structure from exception"
   [e]
+  (println (type e) e)
   (let [start-index (get-in e [:metadata :instaparse.gll/start-index] 0)
         end-index (get-in e [:metadata :instaparse.gll/end-index] (count (:source e)))]
     {; Machine-readable error details
@@ -61,6 +62,7 @@
                 (assoc
                  (select-keys e [:type :variable :variable-type :function :operation :parameters :lib])
                  :variables (:variables e)
+                 :ast (:ast e)
                  :what (:error e)
                  :path (:object-path e)))
      ; Human readable error
@@ -94,7 +96,7 @@
      {:type :result
       :result (runtime/execute strategy instance input-data)})
    (catch Object e
-     (let [error   (-generate-error-data e)]
+     (let [error (-generate-error-data e)]
        {:type :error
         :error error
         :result {:messages [(-generate-error-log error)]}}))))
