@@ -122,17 +122,31 @@
      :remaining-triggers (conj remaining-triggers trigger)
      :dirty? dirty?}))
 
+(defn -print-attrib [k v]
+  (cond (types/formula? v) (println "  " k (types/source v))
+        (string? v) (println "  " k (str "\"" v "\""))
+        (map? v) (doseq [[nk v] v]
+                   (-print-attrib (str k "." (name nk)) v))
+        :else (println "  " k v)))
+
 (defn -evaluate-triggers
   "Test and apply triggers to the context. Repeat until all triggers have been applied, or no triggers' when conditions match.
    Each trigger is applied zero or one times."
   [context state]
   (loop [available-triggers (:trigger state)
          context context]
+    (when (:debug? context)
+      (println "Triggers:")
+      (doseq [trigger available-triggers]
+        (doseq [[k v] trigger]
+          (-print-attrib (name k) v))
+        (println)))
     (let [results (reduce -apply-triggers
                           {:context context :remaining-triggers [] :drity? false}
                           available-triggers)
           context (:context results)]
-      (if (:dirty? results)
+      context
+      #_(if (:dirty? results)
         (recur (:remaining-triggers results) context)
         context))))
 
@@ -154,6 +168,8 @@
 (defn -apply-state
   "Apply the actions of a single state to the context."
   [context state]
+  (when (:debug? context)
+    (println "APPLY" (:current-state context) (:new-state? context)))
   (-> context
       (-evaluate-state-entry state)
       (-process-orders (:orders state))
@@ -164,6 +180,8 @@
    If this is not a new state, then apply the current state.
    Applying a state consists of evaluating the orders and then evaluating the triggers. New states also setup data before this."
   [context states {:keys [key] :as state}]
+  (when (:debug? context)
+    (println "EVAL" (:current-state context) (:new-state? context)))
   (if (:new-state? context)
     (let [num-common    (->> (get-in states [(:previous-state context) :key])
                              (map vector key)
@@ -200,6 +218,8 @@
   [initial-state states context]
   (loop [visited-states #{initial-state}
          context         context]
+    (when (:debug? context)
+      (println "Data for state" (:current-state context) "=>" (:data context)))
     (let [current-state (:current-state context)
           context       (-> context
                             (util/add-message :info (str "Executing state: " current-state))
@@ -224,12 +244,13 @@
                     (-process-trigger-action trigger))
         new-state (:current-state context)]
     (if (not= current-state new-state) ; State has changed, evaluate messages, data and state triggers
-      (-evaluate-state-entry context (get states new-state))
+      ;(-evaluate-state-entry context (get states new-state))
+      (assoc context :new-state? true)
       context)))
 
 (defn execute
   "Construct a context map from a given strategy, data, configuration and inputs, then runs the execution loop against this context."
-  [{:keys [initial-data states]} {:keys [config data]} {:keys [inputs account market event]}]
+  [{:keys [initial-data states]} {:keys [config data debug?]} {:keys [inputs account market event]}]
   (let [static-data    {:libs builtins/libraries
                         :static {:inputs   (or inputs {})
                                  :config   (or config {})
@@ -243,7 +264,8 @@
         initial-state  (or previous-state current-state)
         context        (merge
                         static-data
-                        {:messages       []
+                        {:debug? debug?
+                         :messages       []
                          :previous-state previous-state
                          :current-state  current-state
                          :new-state?     (not= previous-state current-state)

@@ -1,0 +1,99 @@
+# Configurable settings
+[[config]]
+    name = "risk-btc"
+    label = "Risk BTC"
+    type = "number"
+    default = 0.5
+[[config]]
+    name = "tp-risk"
+    label = "Tp  *  R's"
+    type = "number"
+    default = 3
+[[config]]
+    name = "fees"
+    label = "Fee  %"
+    type = "number"
+    default = 0.075
+
+# Input signals
+[inputs]
+    enter-long = {type = "event"}
+    enter-short = {type = "event"}
+
+[data]
+    new-entry = true
+    entry-price = 0
+    entry-size = 0
+    stop-price = 0
+    exit-direction = ""
+
+# Strategy logic
+[states]
+    initial = "not-in-position"
+
+    [[states.state]]
+        id = "not-in-position"
+
+        [[states.state.trigger]]
+            when = "=> inputs.enter-long or inputs.enter-short"
+            data.stop-price = "=> event.stop-price"
+            note.text = "=> 'Setting Stop price: ' ++ #stop-price"
+            
+        [[states.state.trigger]]
+            when = "=> inputs.enter-long or inputs.enter-short"
+            data.entry-size = "=> ((market.last-price * config.risk-btc) / ([Math.abs: market.last-price - #stop-price] + config.fees% of #stop-price + config.fees% of market.last-price)) * market.last-price"
+            note.text = "=> ('Entering: ' ++ #entry-size) ++ ' contracts'"
+
+        [[states.state.orders]]
+            # Only place this order when entering long
+            when = "=> inputs.enter-long"
+            tag = "long"
+            type = "market"
+            side = "buy"
+            contracts = "=> #entry-size"
+            stop-price = "=> #stop-price"
+            # When this order has filled, switch to the "in-position" state
+            on.fill.data.entry-price = "=> event.order.avg-fill-price"
+            on.fill.data.exit-direction = "sell"
+            on.fill.data.new-entry = true
+            on.fill.to-state = "in-position"
+
+        [[states.state.orders]]
+            # Only place this order when entering short
+            when = "=> inputs.enter-short"
+            tag = "short"
+            type = "market"
+            side = "sell"
+            contracts = "=> #entry-size"
+            stop-price = "=> #stop-price"
+            # When this order has filled, switch to the "in-position" state
+            on.fill.data.entry-price = "=> event.order.avg-fill-price"
+            on.fill.data.exit-direction = "buy"
+            on.fill.data.new-entry = true
+            on.fill.to-state = "in-position"
+
+    # When in a position:
+    [[states.state]]
+        id = "in-position"
+        
+        note.text = "=> 'Setting Take Profit'"
+
+        [[states.state.trigger]]
+            when = "=> (not #new-entry) and (inputs.enter-long or inputs.enter-short)"
+            to-state = "not-in-position"
+
+        [[states.state.trigger]]
+            when = true
+            data.new-entry = false
+        
+        # Place take profit limit order
+        [[states.state.orders]]
+            tag = "tp"
+            type = "limit"
+            side = "=> #exit-direction"
+            contracts = "=> account.position"
+            price = "=> #entry-price + [Trades.position-side: [Math.abs: #entry-price - #stop-price] * config.tp-risk]"
+            instructions = ['reduce-only', 'post-only']
+            on.fill.note = "=> 'Took Profit at' ++ market.last-price"
+            on.fill.to-state = "not-in-position"
+            
