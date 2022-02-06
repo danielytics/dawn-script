@@ -11,7 +11,7 @@
    (make-message category message nil))
   ([category message details]
    (cond-> {:category category
-            :time (t/now)
+            :time (str (t/now))
             :text (or message "")}
      details (assoc :details details))))
 
