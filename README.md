@@ -1,6 +1,12 @@
 # dawn
 
-An interpreter and evaluator for the dawn trading strategy language
+An interpreter and evaluator for the dawn trading strategy language.
+
+The purpose of dawn is to declaratively state what orders should exist based on a state machine and external signals. The language syntax is based on TOML, adding an expression language on top to allow for dynamically evaluated values. The runtime expects a particular TOML structure to be able to execute. The dawn language is described in [STRATEGY.md](https://github.com/danielytics/dawn-script/blob/main/STRATEGY.md)
+Dawn is a [Synchronous programming language](https://en.wikipedia.org/wiki/Synchronous_programming_language), specifically an event-driven transformational system, that is designed to be run inside a database transaction: all inputs (current state + input data/events) are gathered ahead of time and the script is then atomically evaluated as a pure function of this input, which produces as output the new state, logs, and the orders that should exist.
+The actual bot stored the state and logs in postgres and diffed the orders with the actual state of orders in the users account in order to generate an "order plan": a series of add, modify or delete actions to be performed against the exchange to bring it in line with the desired orders.
+
+*NOTE:* Clojurescript support was never completed as parser.cljc never added cljs support for TOML parsing.
 
 ## Usage
 
@@ -8,7 +14,7 @@ Dawn is meant to be used as a library, either from Cljoure or Clojurescript.
 
 Leiningen:
 ```
-[dawn-script "0.1.0"]
+[dawn-script "0.1.2-SNAPSHO"]
 ```
 
 Require the library:
